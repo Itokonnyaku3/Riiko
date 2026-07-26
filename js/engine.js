@@ -12,6 +12,12 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
+  // ---- キャラの当たりの大きさ（半径） ----
+  const PLAYER_R = 18;
+  const CAT_R = 14;
+  const ENEMY_R = 18;
+  const TAP_R = 40; // 敵をタップしたと判定する ゆるさ
+
   // ---- 画面サイズ（スマホ・タブレットにあわせる） ----
   let viewW = 0,
     viewH = 0,
@@ -39,17 +45,18 @@
     enemies: [],
     chests: [],
     npcs: [],
+    obstacles: [],
     decorations: [],
+    bullets: [],
     floaters: [], // ふわっと出る文字（ダメージなど）
     keys: {},
     move: { active: false, tx: 0, ty: 0 }, // 「ここへ歩く」目標
   };
 
-  const ENTITY_R = 34; // タップ判定・当たり半径のめやす
-
   // ---- しょきか ----
   function setup(scenario) {
     G.world = scenario.world;
+    G.obstacles = (scenario.obstacles || []).map((o) => ({ ...o }));
     G.decorations = (scenario.decorations || []).map((d) => ({ ...d }));
 
     G.player = {
@@ -58,11 +65,14 @@
       sprite: scenario.player.sprite,
       name: scenario.player.name,
       speed: 150,
+      moving: false,
+      stuckT: 0,
+      trail: [], // 通ったあと（ねこが これを おいかける）
     };
 
     G.partner = {
-      x: scenario.player.x - 40,
-      y: scenario.player.y + 20,
+      x: scenario.player.x - 44,
+      y: scenario.player.y + 26,
       sprite: scenario.partner.sprite,
       name: scenario.partner.name,
       maxHp: scenario.partner.maxHp,
@@ -73,6 +83,9 @@
       atkCd: 0,
       restT: 0,
       bob: 0,
+      wanderT: 0,
+      idleT: 0,
+      orbitA: 0,
     };
 
     G.enemies = scenario.enemies.map((e) => ({
@@ -80,12 +93,14 @@
       hp: e.maxHp,
       alive: true,
       atkCd: 0,
-      bob: Math.random ? 0 : 0, // ※Math.randomは使わない環境向けに固定
+      shootCd: e.shootInterval ? e.shootInterval * 0.6 : 0,
       phase: 0,
+      home: { x: e.x, y: e.y },
     }));
 
     G.chests = scenario.chests.map((c) => ({ ...c, opened: false }));
-    G.npcs = scenario.npcs.map((n) => ({ ...n }));
+    G.npcs = scenario.npcs.map((n) => ({ ...n, _inside: false }));
+    G.bullets = [];
     G.floaters = [];
     G.move.active = false;
     G.paused = false;
@@ -102,9 +117,77 @@
   function clamp(v, min, max) {
     return v < min ? min : v > max ? max : v;
   }
-
   function addFloater(x, y, text, color) {
     G.floaters.push({ x, y, text, color: color || "#fff", life: 0.9 });
+  }
+
+  // ---- しょうがいぶつ：めりこみを外に押し出す（スライドできる） ----
+  function resolveObstacles(ent, radius) {
+    for (const o of G.obstacles) {
+      const dx = ent.x - o.x,
+        dy = ent.y - o.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const min = o.r + radius;
+      if (d < min) {
+        if (d < 0.001) {
+          ent.x = o.x + min;
+        } else {
+          ent.x = o.x + (dx / d) * min;
+          ent.y = o.y + (dy / d) * min;
+        }
+      }
+    }
+  }
+
+  // ---- しょうがいぶつを「自動でよける」進む向きの計算 ----
+  function steerAround(x, y, dirX, dirY, radius) {
+    let ax = dirX,
+      ay = dirY;
+    for (const o of G.obstacles) {
+      const dx = o.x - x,
+        dy = o.y - y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const reach = o.r + radius + 26; // これより近い障害物をよける
+      if (d < reach && d > 0.001) {
+        const nx = dx / d,
+          ny = dy / d;
+        const ahead = nx * dirX + ny * dirY; // 進行方向の前にあるか
+        if (ahead > 0) {
+          const strength = (1 - d / reach) * ahead;
+          // 障害物の横へ すべる向き（左右どちらか、今の向きに近いほう）
+          let px = -ny,
+            py = nx;
+          if (px * dirX + py * dirY < 0) {
+            px = ny;
+            py = -nx;
+          }
+          ax += px * strength * 1.8;
+          ay += py * strength * 1.8;
+        }
+      }
+    }
+    const len = Math.sqrt(ax * ax + ay * ay) || 1;
+    return { x: ax / len, y: ay / len };
+  }
+
+  // 目標にむかって 1歩すすむ（よけ＋押し出しつき）
+  function stepToward(ent, tx, ty, speed, dt, radius, avoid) {
+    const dx = tx - ent.x,
+      dy = ty - ent.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 1) return 0;
+    let dirX = dx / d,
+      dirY = dy / d;
+    if (avoid) {
+      const s = steerAround(ent.x, ent.y, dirX, dirY, radius);
+      dirX = s.x;
+      dirY = s.y;
+    }
+    const step = Math.min(speed * dt, d);
+    ent.x += dirX * step;
+    ent.y += dirY * step;
+    resolveObstacles(ent, radius);
+    return step;
   }
 
   // ---- 入力：タップ／クリック ----
@@ -112,20 +195,18 @@
     return { x: sx + G.cam.x, y: sy + G.cam.y };
   }
 
-  function findInteractableAt(wx, wy) {
-    // 敵 → たからばこ → NPC の順で近いものをさがす
+  function findEnemyAt(wx, wy) {
+    let best = null,
+      bestD = TAP_R + 8;
     for (const e of G.enemies) {
-      if (e.alive && dist(wx, wy, e.x, e.y) < ENTITY_R + 8)
-        return { type: "enemy", obj: e };
+      if (!e.alive) continue;
+      const d = dist(wx, wy, e.x, e.y);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
     }
-    for (const c of G.chests) {
-      if (!c.opened && dist(wx, wy, c.x, c.y) < ENTITY_R + 8)
-        return { type: "chest", obj: c };
-    }
-    for (const n of G.npcs) {
-      if (dist(wx, wy, n.x, n.y) < ENTITY_R + 8) return { type: "npc", obj: n };
-    }
-    return null;
+    return best;
   }
 
   function handlePointer(clientX, clientY, isDown) {
@@ -140,48 +221,42 @@
     const w = screenToWorld(clientX, clientY);
 
     if (isDown) {
-      const hit = findInteractableAt(w.x, w.y);
-      if (hit) {
-        interact(hit);
-        return; // 触ったのが敵などなら、歩かない
+      const e = findEnemyAt(w.x, w.y);
+      if (e) {
+        commandCat(e); // 敵をタップ＝あいぼうを差し向ける
+        return;
       }
     }
     // それ以外は「ここへ歩く」
     G.move.active = true;
     G.move.tx = clamp(w.x, 10, G.world.width - 10);
     G.move.ty = clamp(w.y, 10, G.world.height - 10);
+    G.player.stuckT = 0;
   }
 
-  function interact(hit) {
-    if (hit.type === "enemy") {
-      // あいぼうを その敵に むかわせる
-      G.partner.target = hit.obj;
-      if (G.partner.state !== "rest") G.partner.state = "attack";
-      G.partner.atkCd = 0.2;
-    } else if (hit.type === "chest") {
-      const c = hit.obj;
-      c.opened = true;
-      addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
-      Dialogue.open("たからばこ", [c.message]);
-    } else if (hit.type === "npc") {
-      const n = hit.obj;
-      Dialogue.open(n.name, n.lines);
-    }
+  function commandCat(enemy) {
+    G.partner.target = enemy;
+    if (G.partner.state !== "rest") G.partner.state = "attack";
+    G.partner.atkCd = 0.2;
   }
 
   // ---- こうしん（毎フレーム） ----
   function update(dt) {
     if (G.paused) return;
-
     updatePlayer(dt);
+    checkTriggers(); // ぶつかって発生するイベント
     updatePartner(dt);
     updateEnemies(dt);
+    updateBullets(dt);
     updateFloaters(dt);
     updateCamera();
   }
 
   function updatePlayer(dt) {
     const p = G.player;
+    const prevX = p.x,
+      prevY = p.y;
+
     // キーボード（パソコンで確認用）
     let kx = 0,
       ky = 0;
@@ -191,34 +266,76 @@
     if (G.keys["ArrowDown"] || G.keys["s"]) ky += 1;
 
     if (kx || ky) {
-      G.move.active = false; // キーを使ったら 目標歩きは解除
+      G.move.active = false;
       const len = Math.sqrt(kx * kx + ky * ky) || 1;
       p.x += (kx / len) * p.speed * dt;
       p.y += (ky / len) * p.speed * dt;
+      resolveObstacles(p, PLAYER_R);
     } else if (G.move.active) {
       const d = dist(p.x, p.y, G.move.tx, G.move.ty);
       if (d < 4) {
         G.move.active = false;
       } else {
-        const step = Math.min(p.speed * dt, d);
-        p.x += ((G.move.tx - p.x) / d) * step;
-        p.y += ((G.move.ty - p.y) / d) * step;
+        // タップ先へ：障害物を自動でよけて進む
+        stepToward(p, G.move.tx, G.move.ty, p.speed, dt, PLAYER_R, true);
       }
     }
+
     p.x = clamp(p.x, 20, G.world.width - 20);
     p.y = clamp(p.y, 20, G.world.height - 20);
+
+    // うごいたか？（ねこの追従と、はまり防止に使う）
+    const moved = dist(p.x, p.y, prevX, prevY);
+    p.moving = moved > 0.4;
+
+    // タップ先が障害物の中などで進めないときは あきらめる（はまり防止）
+    if (G.move.active) {
+      if (moved < 0.4) p.stuckT += dt;
+      else p.stuckT = 0;
+      if (p.stuckT > 0.7) {
+        G.move.active = false;
+        p.stuckT = 0;
+      }
+    }
+
+    // 通ったあとを記録（ねこが これを おいかける）
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > 70) p.trail.shift();
   }
 
+  // ---- ぶつかって発生するイベント（宝箱・会話） ----
+  function checkTriggers() {
+    const p = G.player;
+    for (const c of G.chests) {
+      if (!c.opened && dist(p.x, p.y, c.x, c.y) < PLAYER_R + 26) {
+        c.opened = true;
+        addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
+        Dialogue.open("たからばこ", [c.message]);
+        return;
+      }
+    }
+    for (const n of G.npcs) {
+      const near = dist(p.x, p.y, n.x, n.y) < PLAYER_R + 30;
+      if (near && !n._inside) {
+        n._inside = true;
+        Dialogue.open(n.name, n.lines);
+        return;
+      }
+      if (!near) n._inside = false;
+    }
+  }
+
+  // ---- あいぼう（ねこ） ----
   function updatePartner(dt) {
     const pt = G.partner;
-    const p = G.player;
     pt.bob += dt * 6;
+    pt.wanderT += dt;
 
     // つかれて休んでいる
     if (pt.state === "rest") {
       pt.restT -= dt;
-      pt.hp = Math.min(pt.maxHp, pt.hp + pt.maxHp * dt * 0.5); // だんだん回復
-      followPlayer(pt, p, dt, 220);
+      pt.hp = Math.min(pt.maxHp, pt.hp + pt.maxHp * dt * 0.5);
+      followPlayer(pt, dt);
       if (pt.restT <= 0) {
         pt.hp = pt.maxHp;
         pt.state = "follow";
@@ -232,11 +349,9 @@
       const d = dist(pt.x, pt.y, e.x, e.y);
       const range = 46;
       if (d > range) {
-        const step = Math.min(230 * dt, d - range + 1);
-        pt.x += ((e.x - pt.x) / d) * step;
-        pt.y += ((e.y - pt.y) / d) * step;
+        // 障害物をよけて 敵へ近づく
+        stepToward(pt, e.x, e.y, 230, dt, CAT_R, true);
       } else {
-        // こうげき
         pt.atkCd -= dt;
         if (pt.atkCd <= 0) {
           pt.atkCd = 0.7;
@@ -245,48 +360,130 @@
           if (e.hp <= 0) defeatEnemy(e);
         }
       }
-      if (pt.hp <= 0) {
-        pt.state = "rest";
-        pt.restT = 3;
-        pt.target = null;
-        addFloater(pt.x, pt.y - 40, "つかれた…💤", "#9fd");
-      }
+      if (pt.hp <= 0) faint(pt);
       return;
     }
 
-    // ふだん：しゅじんこうについていく
+    // ふだん：しゅじんこうを 少しおくれて・少しはなれて おいかける
     if (pt.state !== "follow") pt.state = "follow";
-    followPlayer(pt, p, dt, 300);
+    followPlayer(pt, dt);
   }
 
-  function followPlayer(pt, p, dt, speed) {
-    const goalX = p.x - 42;
-    const goalY = p.y + 24;
-    const d = dist(pt.x, pt.y, goalX, goalY);
-    if (d > 6) {
+  function faint(pt) {
+    pt.state = "rest";
+    pt.restT = 3;
+    pt.target = null;
+    addFloater(pt.x, pt.y - 40, "つかれた…💤", "#9fd");
+  }
+
+  // ねこの おいかたり（おくれ・はなれ・ゆらぎ・止まると まわる）
+  function followPlayer(pt, dt) {
+    const p = G.player;
+
+    if (p.moving) pt.idleT = 0;
+    else pt.idleT += dt;
+
+    let tx, ty;
+    if (pt.idleT > 0.5) {
+      // 主人公が 止まっているとき → まわりを ぐるぐる
+      pt.orbitA += dt * (1.1 + Math.sin(pt.wanderT * 0.7) * 0.3);
+      const r = 36 + Math.sin(pt.wanderT * 0.9) * 10;
+      tx = p.x + Math.cos(pt.orbitA) * r;
+      ty = p.y + Math.sin(pt.orbitA) * r * 0.7;
+    } else {
+      // うごいているとき → 通ったあとを 少しおくれて おいかける
+      const idx = Math.max(0, p.trail.length - 16);
+      const base = p.trail[idx] || p;
+      const wx = Math.sin(pt.wanderT * 1.7) * 10 + Math.cos(pt.wanderT * 0.6) * 6;
+      const wy = Math.cos(pt.wanderT * 1.3) * 10 + Math.sin(pt.wanderT * 0.8) * 6;
+      tx = base.x + wx;
+      ty = base.y + wy;
+      // まわる角度を 今の位置に あわせておく（切りかわりを なめらかに）
+      pt.orbitA = Math.atan2(pt.y - p.y, pt.x - p.x);
+    }
+
+    // 近いときは ゆっくり（自然なおくれ）、遠いときは 速く追いつく
+    const dx = tx - pt.x,
+      dy = ty - pt.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const deadzone = 6;
+    if (d > deadzone) {
+      const speed = Math.min(d * 4.2, 240);
       const step = Math.min(speed * dt, d);
-      pt.x += ((goalX - pt.x) / d) * step;
-      pt.y += ((goalY - pt.y) / d) * step;
+      pt.x += (dx / d) * step;
+      pt.y += (dy / d) * step;
+      resolveObstacles(pt, CAT_R);
     }
   }
 
+  // ---- てき ----
   function updateEnemies(dt) {
     const pt = G.partner;
+    const p = G.player;
     for (const e of G.enemies) {
       if (!e.alive) continue;
       e.phase += dt * 4;
-      // あいぼうが 近くで たたかっていたら、はんげき
-      if (pt.state === "attack" && pt.target === e) {
-        const d = dist(pt.x, pt.y, e.x, e.y);
-        if (d <= 52) {
-          e.atkCd -= dt;
-          if (e.atkCd <= 0) {
-            e.atkCd = 1.0;
-            pt.hp -= e.attack;
-            addFloater(pt.x, pt.y - 38, "-" + e.attack, "#ff8f8f");
-          }
+
+      const engaged =
+        pt.state === "attack" &&
+        pt.target === e &&
+        dist(pt.x, pt.y, e.x, e.y) <= 52;
+
+      if (engaged) {
+        // せっきん戦：うごかず はんげき
+        e.atkCd -= dt;
+        if (e.atkCd <= 0) {
+          e.atkCd = 1.0;
+          pt.hp -= e.attack;
+          addFloater(pt.x, pt.y - 38, "-" + e.attack, "#ff8f8f");
+          if (pt.hp <= 0) faint(pt);
         }
+      } else {
+        moveEnemy(e, dt, p);
       }
+
+      // 弾を撃つタイプ（せっきん戦でも 撃つ）
+      if (e.behavior === "shooter") updateShooter(e, dt, p);
+    }
+  }
+
+  function moveEnemy(e, dt, p) {
+    if (e.behavior === "chase") {
+      const d = dist(e.x, e.y, p.x, p.y);
+      if (d < (e.sight || 240)) {
+        stepToward(e, p.x, p.y, e.speed || 50, dt, ENEMY_R, true);
+      } else {
+        stepToward(e, e.home.x, e.home.y, (e.speed || 50) * 0.6, dt, ENEMY_R, true);
+      }
+    } else if (e.behavior === "patrol") {
+      const r = e.patrolRange || 80;
+      const tx = e.home.x + Math.sin(e.phase * 0.5) * r;
+      const ty = e.home.y + Math.cos(e.phase * 0.35) * r * 0.5;
+      stepToward(e, tx, ty, e.speed || 35, dt, ENEMY_R, true);
+    } else if (e.behavior === "shooter") {
+      const tx = e.home.x + Math.sin(e.phase * 0.3) * 20;
+      const ty = e.home.y + Math.cos(e.phase * 0.3) * 20;
+      stepToward(e, tx, ty, e.speed || 18, dt, ENEMY_R, false);
+    }
+  }
+
+  function updateShooter(e, dt, p) {
+    e.shootCd -= dt;
+    const d = dist(e.x, e.y, p.x, p.y);
+    if (d < (e.sight || 320) && e.shootCd <= 0) {
+      e.shootCd = e.shootInterval || 1.8;
+      const dx = p.x - e.x,
+        dy = p.y - e.y;
+      const dd = Math.sqrt(dx * dx + dy * dy) || 1;
+      const sp = e.bulletSpeed || 140;
+      G.bullets.push({
+        x: e.x,
+        y: e.y,
+        vx: (dx / dd) * sp,
+        vy: (dy / dd) * sp,
+        dmg: e.bulletDamage || 3,
+        life: 4,
+      });
     }
   }
 
@@ -296,7 +493,6 @@
     G.partner.target = null;
     G.partner.state = "follow";
 
-    // ボスをたおしたら クリア演出
     if (e.id === "boss") {
       setTimeout(() => {
         Dialogue.open("しま", [
@@ -305,6 +501,40 @@
         ]);
       }, 500);
     }
+  }
+
+  // ---- 弾 ----
+  function updateBullets(dt) {
+    const pt = G.partner;
+    for (const b of G.bullets) {
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+
+      // あいぼうに当たる（主人公には当たらない＝やさしい設計）
+      if (pt.state !== "rest" && dist(b.x, b.y, pt.x, pt.y) < CAT_R + 8) {
+        pt.hp -= b.dmg;
+        addFloater(pt.x, pt.y - 38, "-" + b.dmg, "#ff8f8f");
+        b.life = 0;
+        if (pt.hp <= 0) faint(pt);
+        continue;
+      }
+      // 障害物に当たったら 消える
+      for (const o of G.obstacles) {
+        if (dist(b.x, b.y, o.x, o.y) < o.r) {
+          b.life = 0;
+          break;
+        }
+      }
+    }
+    G.bullets = G.bullets.filter(
+      (b) =>
+        b.life > 0 &&
+        b.x > -20 &&
+        b.y > -20 &&
+        b.x < G.world.width + 20 &&
+        b.y < G.world.height + 20
+    );
   }
 
   function updateFloaters(dt) {
@@ -319,7 +549,6 @@
     const p = G.player;
     let cx = p.x - viewW / 2;
     let cy = p.y - viewH / 2;
-    // 世界が画面より大きいときだけ動かす。小さいときは中央に。
     if (G.world.width > viewW) cx = clamp(cx, 0, G.world.width - viewW);
     else cx = (G.world.width - viewW) / 2;
     if (G.world.height > viewH) cy = clamp(cy, 0, G.world.height - viewH);
@@ -330,33 +559,31 @@
 
   // ---- びょうが ----
   function draw() {
-    // 地面
     ctx.fillStyle = G.world.ground || "#8fca7a";
     ctx.fillRect(0, 0, viewW, viewH);
-
-    // 地面のもよう（うすい格子）
     drawGrid();
 
     const ox = -G.cam.x,
       oy = -G.cam.y;
 
-    // かざり
-    for (const d of G.decorations) {
-      drawSprite(d.sprite, d.x + ox, d.y + oy, 36);
+    for (const d of G.decorations) drawSprite(d.sprite, d.x + ox, d.y + oy, 30);
+
+    // しょうがいぶつ（かげ＋絵）
+    for (const o of G.obstacles) {
+      ctx.fillStyle = "rgba(0,0,0,0.12)";
+      ctx.beginPath();
+      ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawSprite(o.sprite, o.x + ox, o.y + oy, o.r * 1.7);
     }
 
-    // たからばこ
-    for (const c of G.chests) {
-      drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34);
-    }
+    for (const c of G.chests) drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34);
 
-    // NPC
     for (const n of G.npcs) {
       drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
       drawNameTag(n.name, n.x + ox, n.y + oy - 34);
     }
 
-    // 敵（HPバーつき）
     for (const e of G.enemies) {
       if (!e.alive) continue;
       const bob = Math.sin(e.phase) * 3;
@@ -364,17 +591,26 @@
       drawHpBar(e.x + ox, e.y + oy - 32, e.hp, e.maxHp, "#ff6b6b");
     }
 
-    // あいぼう（ねこ）
+    // 弾
+    for (const b of G.bullets) {
+      ctx.fillStyle = "#ff5a5a";
+      ctx.strokeStyle = "rgba(0,0,0,0.3)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(b.x + ox, b.y + oy, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // あいぼう
     const pt = G.partner;
     const ptBob = Math.sin(pt.bob) * 2;
     drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
     drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
     if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
 
-    // しゅじんこう
     drawSprite(G.player.sprite, G.player.x + ox, G.player.y + oy, 42);
 
-    // ふわっと文字
     for (const f of G.floaters) {
       ctx.globalAlpha = clamp(f.life / 0.9, 0, 1);
       ctx.fillStyle = f.color;
@@ -392,8 +628,8 @@
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     const size = 64;
-    const startX = -((G.cam.x % size) + size) % size;
-    const startY = -((G.cam.y % size) + size) % size;
+    const startX = -(((G.cam.x % size) + size) % size);
+    const startY = -(((G.cam.y % size) + size) % size);
     ctx.beginPath();
     for (let x = startX; x < viewW; x += size) {
       ctx.moveTo(x, 0);
@@ -474,18 +710,14 @@
     },
     advance() {
       this.idx++;
-      if (this.idx >= this.lines.length) {
-        this.close();
-      } else {
-        this.textEl.textContent = this.lines[this.idx];
-      }
+      if (this.idx >= this.lines.length) this.close();
+      else this.textEl.textContent = this.lines[this.idx];
     },
     close() {
       this.box.classList.add("hidden");
       G.paused = false;
     },
   };
-  // かいわウィンドウ自体のタップでも つぎへ
   Dialogue.box.addEventListener("pointerdown", (ev) => {
     ev.stopPropagation();
     Dialogue.advance();
@@ -495,33 +727,31 @@
   function bindInput() {
     canvas.addEventListener(
       "pointerdown",
-      (ev) => {
-        handlePointer(ev.clientX, ev.clientY, true);
-      },
+      (ev) => handlePointer(ev.clientX, ev.clientY, true),
       { passive: false }
     );
     canvas.addEventListener("pointermove", (ev) => {
       if (ev.buttons) handlePointer(ev.clientX, ev.clientY, false);
     });
-    window.addEventListener("keydown", (e) => {
-      G.keys[e.key] = true;
-    });
-    window.addEventListener("keyup", (e) => {
-      G.keys[e.key] = false;
-    });
+    window.addEventListener("keydown", (e) => (G.keys[e.key] = true));
+    window.addEventListener("keyup", (e) => (G.keys[e.key] = false));
   }
+
+  let inputBound = false;
 
   // ---- そとから呼ぶ ----
   window.RiikoGame = {
     start(scenario) {
       resize();
       setup(scenario);
-      bindInput();
+      if (!inputBound) {
+        bindInput();
+        inputBound = true;
+      }
       G.running = true;
       G.last = performance.now();
       requestAnimationFrame(loop);
 
-      // ヒントは数秒で うすくする
       const hint = document.getElementById("hint");
       if (hint) setTimeout(() => (hint.style.opacity = "0"), 5000);
     },
@@ -532,14 +762,16 @@
         update(dt);
         draw();
       },
-      tap: (worldX, worldY) => {
-        const hit = findInteractableAt(worldX, worldY);
-        if (hit) interact(hit);
-        else {
-          G.move.active = true;
-          G.move.tx = clamp(worldX, 10, G.world.width - 10);
-          G.move.ty = clamp(worldY, 10, G.world.height - 10);
-        }
+      tapEnemy: (x, y) => {
+        const e = findEnemyAt(x, y);
+        if (e) commandCat(e);
+        return e ? e.id : null;
+      },
+      walkTo: (x, y) => {
+        G.move.active = true;
+        G.move.tx = x;
+        G.move.ty = y;
+        G.player.stuckT = 0;
       },
     },
   };
