@@ -1,0 +1,37 @@
+<meta charset="utf-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+/>
+<title>ねこの相棒とふしぎの島</title>
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- ===== パスワードのとびら（かんたんな目隠し） ===== -->
+<div id="gate" class="overlay">
+  <div class="gate-box">
+    <div class="gate-title">🐱 ねこの相棒とふしぎの島</div>
+    <div class="gate-sub">あいことばを入れてね</div>
+    <input id="gate-input" type="password" inputmode="text" autocomplete="off" placeholder="あいことば" />
+    <button id="gate-btn">スタート</button>
+    <div id="gate-error" class="gate-error"></div>
+  </div>
+</div>
+
+<!-- ===== ゲーム画面 ===== -->
+<div id="game-container">
+  <canvas id="game"></canvas>
+
+  <!-- あそびかたの小さなヒント -->
+  <div id="hint">さわったところへ あるく／てきを タップ すると あいぼうが たたかう！</div>
+
+  <!-- かいわのウィンドウ -->
+  <div id="dialogue" class="hidden">
+    <div id="dialogue-name"></div>
+    <div id="dialogue-text"></div>
+    <div class="dialogue-more">▼ タップでつぎへ</div>
+  </div>
+</div>
+
+<script src="js/scenario.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/main.js"></script>
