@@ -17,18 +17,28 @@
   </div>
 </div>
 
-<!-- ===== ゲーム画面 ===== -->
-<div id="game-container">
-  <canvas id="game"></canvas>
+<!-- ===== ゲーム画面（固定サイズ・中央ぞろえ） ===== -->
+<div id="stage">
+  <div id="game-container">
+    <canvas id="game"></canvas>
 
-  <!-- あそびかたの小さなヒント -->
-  <div id="hint">さわったところへ あるく／てきを タップ すると あいぼうが たたかう！</div>
+    <!-- あそびかたの小さなヒント -->
+    <div id="hint">うごく：ボタン／WASD　・　てきをタップ：ねこが たたかう　・　じめんをタップ：ねこが すすむ</div>
 
-  <!-- かいわのウィンドウ -->
-  <div id="dialogue" class="hidden">
-    <div id="dialogue-name"></div>
-    <div id="dialogue-text"></div>
-    <div class="dialogue-more">▼ タップでつぎへ</div>
+    <!-- かいわのウィンドウ -->
+    <div id="dialogue" class="hidden">
+      <div id="dialogue-name"></div>
+      <div id="dialogue-text"></div>
+      <div class="dialogue-more">▼ タップでつぎへ</div>
+    </div>
+
+    <!-- ほうこうボタン（バーチャルキー） -->
+    <div id="dpad">
+      <button class="dbtn up" data-dir="ArrowUp" aria-label="うえ">▲</button>
+      <button class="dbtn left" data-dir="ArrowLeft" aria-label="ひだり">◀</button>
+      <button class="dbtn right" data-dir="ArrowRight" aria-label="みぎ">▶</button>
+      <button class="dbtn down" data-dir="ArrowDown" aria-label="した">▼</button>
+    </div>
   </div>
 </div>
 

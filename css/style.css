@@ -12,21 +12,31 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #2b3a2f;
+  background: #1c241e; /* レターボックス（画面のあまり）の色 */
   font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
   touch-action: none;
   overscroll-behavior: none;
 }
 
-#game-container {
+/* 画面の中央に、固定サイズのゲームを置く */
+#stage {
   position: fixed;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-container {
+  position: relative; /* 中の hint / dpad / dialogue の基準 */
 }
 
 canvas#game {
   display: block;
-  width: 100%;
-  height: 100%;
+  background: #8fca7a;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  /* 実際の表示サイズは JS が画面に合わせて設定します（アスペクト比は固定） */
 }
 
 /* ===== パスワードのとびら ===== */
@@ -104,29 +114,31 @@ canvas#game {
 
 /* ===== ヒント ===== */
 #hint {
-  position: fixed;
-  top: env(safe-area-inset-top, 8px);
+  position: absolute;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 8px;
   padding: 6px 14px;
   background: rgba(0, 0, 0, 0.4);
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   border-radius: 999px;
   white-space: nowrap;
   pointer-events: none;
   transition: opacity 0.6s;
   z-index: 20;
+  max-width: 96%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== かいわウィンドウ ===== */
 #dialogue {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 24px;
+  bottom: 20px;
   transform: translateX(-50%);
-  width: min(92vw, 560px);
+  width: min(92%, 560px);
   background: #fffdf7;
   border: 3px solid #3a5a45;
   border-radius: 16px;
@@ -158,4 +170,58 @@ canvas#game {
   text-align: right;
   font-size: 12px;
   color: #aaa;
+}
+
+/* ===== ほうこうボタン（バーチャルキー） ===== */
+#dpad {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 150px;
+  height: 150px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  z-index: 25;
+  touch-action: none;
+}
+
+.dbtn {
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  color: #3a5a45;
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.dbtn:active,
+.dbtn.pressed {
+  background: rgba(244, 160, 60, 0.9);
+  color: #fff;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+}
+
+.dbtn.up {
+  grid-column: 2;
+  grid-row: 1;
+}
+.dbtn.left {
+  grid-column: 1;
+  grid-row: 2;
+}
+.dbtn.right {
+  grid-column: 3;
+  grid-row: 2;
+}
+.dbtn.down {
+  grid-column: 2;
+  grid-row: 3;
 }

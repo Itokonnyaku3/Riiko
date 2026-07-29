@@ -40,6 +40,33 @@
     if (e.key === "Enter") tryPassword();
   });
 
+  // ===== ほうこうボタン（バーチャルキー） =====
+  //   ボタンを おすと、キーボードと同じ しくみで 主人公が うごきます。
+  function setDir(key, down) {
+    window.dispatchEvent(
+      new KeyboardEvent(down ? "keydown" : "keyup", { key: key })
+    );
+  }
+
+  document.querySelectorAll(".dbtn").forEach((b) => {
+    const key = b.getAttribute("data-dir");
+    const pressOn = (ev) => {
+      ev.preventDefault();
+      b.classList.add("pressed");
+      setDir(key, true);
+    };
+    const pressOff = () => {
+      b.classList.remove("pressed");
+      setDir(key, false);
+    };
+    b.addEventListener("pointerdown", pressOn);
+    b.addEventListener("pointerup", pressOff);
+    b.addEventListener("pointercancel", pressOff);
+    b.addEventListener("pointerleave", pressOff);
+    // 指がすべって外れたときの保険
+    b.addEventListener("lostpointercapture", pressOff);
+  });
+
   // 同じセッションのあいだは あいことばを もう一度きかない
   let alreadyOk = false;
   try {

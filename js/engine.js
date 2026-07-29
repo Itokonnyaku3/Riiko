@@ -18,18 +18,29 @@
   const ENEMY_R = 18;
   const TAP_R = 40; // 敵をタップしたと判定する ゆるさ
 
-  // ---- 画面サイズ（スマホ・タブレットにあわせる） ----
-  let viewW = 0,
-    viewH = 0,
+  // ---- 画面サイズ（固定）----
+  //   ゲームの中の大きさは いつも LOGICAL_W × LOGICAL_H。
+  //   じっさいの表示は、画面に合わせて 拡大/縮小します（アスペクト比は固定）。
+  const LOGICAL_W = 900;
+  const LOGICAL_H = 600;
+  let viewW = LOGICAL_W,
+    viewH = LOGICAL_H,
     dpr = 1;
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
-    viewW = window.innerWidth;
-    viewH = window.innerHeight;
-    canvas.width = Math.floor(viewW * dpr);
-    canvas.height = Math.floor(viewH * dpr);
+    viewW = LOGICAL_W;
+    viewH = LOGICAL_H;
+    canvas.width = Math.floor(LOGICAL_W * dpr);
+    canvas.height = Math.floor(LOGICAL_H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 画面に収まるように CSS 表示サイズを決める（アスペクト比は固定）
+    const scale = Math.min(
+      window.innerWidth / LOGICAL_W,
+      window.innerHeight / LOGICAL_H
+    );
+    canvas.style.width = Math.round(LOGICAL_W * scale) + "px";
+    canvas.style.height = Math.round(LOGICAL_H * scale) + "px";
   }
   window.addEventListener("resize", resize);
 
@@ -78,8 +89,10 @@
       maxHp: scenario.partner.maxHp,
       hp: scenario.partner.maxHp,
       attack: scenario.partner.attack,
-      state: "follow", // follow / attack / rest
+      state: "follow", // follow / attack / rest / goto
       target: null,
+      gotoX: 0,
+      gotoY: 0,
       atkCd: 0,
       restT: 0,
       bob: 0,
@@ -191,8 +204,13 @@
   }
 
   // ---- 入力：タップ／クリック ----
-  function screenToWorld(sx, sy) {
-    return { x: sx + G.cam.x, y: sy + G.cam.y };
+  //   画面上の指の位置（clientX/Y）を、ゲームの中の座標に変換する。
+  //   canvas は 画面に合わせて拡大されているので、その ばいりつ を計算する。
+  function clientToWorld(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const lx = (clientX - rect.left) * (LOGICAL_W / rect.width);
+    const ly = (clientY - rect.top) * (LOGICAL_H / rect.height);
+    return { x: lx + G.cam.x, y: ly + G.cam.y };
   }
 
   function findEnemyAt(wx, wy) {
@@ -218,26 +236,29 @@
       return;
     }
 
-    const w = screenToWorld(clientX, clientY);
-
-    if (isDown) {
-      const e = findEnemyAt(w.x, w.y);
-      if (e) {
-        commandCat(e); // 敵をタップ＝あいぼうを差し向ける
-        return;
-      }
+    // タップ／クリックは「ねこ」への めいれい（主人公は うごかない）
+    const w = clientToWorld(clientX, clientY);
+    const e = findEnemyAt(w.x, w.y);
+    if (e) {
+      commandCat(e); // 敵をタップ＝あいぼうを差し向けて たたかう
+    } else {
+      commandCatMove(w.x, w.y); // じめんをタップ＝あいぼうを そこへ進ませる
     }
-    // それ以外は「ここへ歩く」
-    G.move.active = true;
-    G.move.tx = clamp(w.x, 10, G.world.width - 10);
-    G.move.ty = clamp(w.y, 10, G.world.height - 10);
-    G.player.stuckT = 0;
   }
 
   function commandCat(enemy) {
+    if (G.partner.state === "rest") return; // つかれ中は うごけない
     G.partner.target = enemy;
-    if (G.partner.state !== "rest") G.partner.state = "attack";
+    G.partner.state = "attack";
     G.partner.atkCd = 0.2;
+  }
+
+  function commandCatMove(wx, wy) {
+    if (G.partner.state === "rest") return;
+    G.partner.target = null;
+    G.partner.state = "goto";
+    G.partner.gotoX = clamp(wx, 10, G.world.width - 10);
+    G.partner.gotoY = clamp(wy, 10, G.world.height - 10);
   }
 
   // ---- こうしん（毎フレーム） ----
@@ -265,38 +286,20 @@
     if (G.keys["ArrowUp"] || G.keys["w"]) ky -= 1;
     if (G.keys["ArrowDown"] || G.keys["s"]) ky += 1;
 
+    // 主人公は キーボード／ほうこうボタン だけで うごく
     if (kx || ky) {
-      G.move.active = false;
       const len = Math.sqrt(kx * kx + ky * ky) || 1;
       p.x += (kx / len) * p.speed * dt;
       p.y += (ky / len) * p.speed * dt;
       resolveObstacles(p, PLAYER_R);
-    } else if (G.move.active) {
-      const d = dist(p.x, p.y, G.move.tx, G.move.ty);
-      if (d < 4) {
-        G.move.active = false;
-      } else {
-        // タップ先へ：障害物を自動でよけて進む
-        stepToward(p, G.move.tx, G.move.ty, p.speed, dt, PLAYER_R, true);
-      }
     }
 
     p.x = clamp(p.x, 20, G.world.width - 20);
     p.y = clamp(p.y, 20, G.world.height - 20);
 
-    // うごいたか？（ねこの追従と、はまり防止に使う）
+    // うごいたか？（ねこの追従につかう）
     const moved = dist(p.x, p.y, prevX, prevY);
     p.moving = moved > 0.4;
-
-    // タップ先が障害物の中などで進めないときは あきらめる（はまり防止）
-    if (G.move.active) {
-      if (moved < 0.4) p.stuckT += dt;
-      else p.stuckT = 0;
-      if (p.stuckT > 0.7) {
-        G.move.active = false;
-        p.stuckT = 0;
-      }
-    }
 
     // 通ったあとを記録（ねこが これを おいかける）
     p.trail.push({ x: p.x, y: p.y });
@@ -339,6 +342,17 @@
       if (pt.restT <= 0) {
         pt.hp = pt.maxHp;
         pt.state = "follow";
+      }
+      return;
+    }
+
+    // タップされた じめんへ 進む
+    if (pt.state === "goto") {
+      const d = dist(pt.x, pt.y, pt.gotoX, pt.gotoY);
+      if (d < 12) {
+        pt.state = "follow"; // ついたら また ついてくる
+      } else {
+        stepToward(pt, pt.gotoX, pt.gotoY, 240, dt, CAT_R, true);
       }
       return;
     }
@@ -767,11 +781,9 @@
         if (e) commandCat(e);
         return e ? e.id : null;
       },
-      walkTo: (x, y) => {
-        G.move.active = true;
-        G.move.tx = x;
-        G.move.ty = y;
-        G.player.stuckT = 0;
+      catTo: (x, y) => commandCatMove(x, y),
+      press: (key, down) => {
+        G.keys[key] = down;
       },
     },
   };
