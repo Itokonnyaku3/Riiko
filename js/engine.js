@@ -60,6 +60,10 @@
     decorations: [],
     bullets: [],
     floaters: [], // ふわっと出る文字（ダメージなど）
+    gates: [], // とびら（なぞ解きで あく）
+    exit: null, // つぎのステージへの 出口
+    items: {}, // あつめたアイテムの数（例：{ ほうせき: 2 }）
+    bossDefeated: false,
     keys: {},
     move: { active: false, tx: 0, ty: 0 }, // 「ここへ歩く」目標
   };
@@ -113,6 +117,18 @@
 
     G.chests = scenario.chests.map((c) => ({ ...c, opened: false }));
     G.npcs = scenario.npcs.map((n) => ({ ...n, _inside: false }));
+
+    // とびら：かべ(木/レンガ)を 障害物に くわえる（あいたら 消える）
+    G.gates = (scenario.gates || []).map((g) => ({ ...g, open: false, _inside: false }));
+    for (const g of G.gates) {
+      for (const w of g.wall || []) {
+        G.obstacles.push({ ...w, gateId: g.id });
+      }
+    }
+
+    G.exit = scenario.exit ? { ...scenario.exit, _done: false } : null;
+    G.items = {};
+    G.bossDefeated = false;
     G.bullets = [];
     G.floaters = [];
     G.move.active = false;
@@ -306,17 +322,45 @@
     if (p.trail.length > 70) p.trail.shift();
   }
 
-  // ---- ぶつかって発生するイベント（宝箱・会話） ----
+  // ---- ぶつかって発生するイベント（宝箱・会話・とびら・出口） ----
   function checkTriggers() {
     const p = G.player;
+
+    // たからばこ（あけると アイテムが 手に入る）
     for (const c of G.chests) {
       if (!c.opened && dist(p.x, p.y, c.x, c.y) < PLAYER_R + 26) {
         c.opened = true;
+        if (c.key) G.items[c.key] = (G.items[c.key] || 0) + 1;
         addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
         Dialogue.open("たからばこ", [c.message]);
         return;
       }
     }
+
+    // とびら（アイテムが そろうと あく。まだなら ヒントを出す）
+    for (const g of G.gates) {
+      if (g.open) continue;
+      const have = G.items[g.requireKey] || 0;
+      if (have >= g.requireCount) {
+        g.open = true;
+        G.obstacles = G.obstacles.filter((o) => o.gateId !== g.id);
+        addFloater(g.x, g.y - 30, "ひらいた！✨", "#ffe36b");
+        Dialogue.open("とびら", g.openLines || ["とびらが ひらいた！"]);
+        return;
+      }
+      const near = dist(p.x, p.y, g.x, g.y) < (g.r || 40) + 26;
+      if (near && !g._inside) {
+        g._inside = true;
+        const lines = (g.lockedLines || ["かたく とじている…"]).map((s) =>
+          s.replace("{have}", have).replace("{need}", g.requireCount)
+        );
+        Dialogue.open("とびら", lines);
+        return;
+      }
+      if (!near) g._inside = false;
+    }
+
+    // とうじょうじんぶつ（ヒントをくれる）
     for (const n of G.npcs) {
       const near = dist(p.x, p.y, n.x, n.y) < PLAYER_R + 30;
       if (near && !n._inside) {
@@ -325,6 +369,16 @@
         return;
       }
       if (!near) n._inside = false;
+    }
+
+    // 出口（ボスをたおすと つかえる）
+    if (G.exit) {
+      const near = dist(p.x, p.y, G.exit.x, G.exit.y) < (G.exit.r || 40);
+      if (near && G.bossDefeated && !G.exit._done) {
+        G.exit._done = true;
+        Dialogue.open("しゅつぐち", G.exit.lines || ["つぎの ステージへ！"]);
+        return;
+      }
     }
   }
 
@@ -508,10 +562,12 @@
     G.partner.state = "follow";
 
     if (e.id === "boss") {
+      G.bossDefeated = true;
       setTimeout(() => {
         Dialogue.open("しま", [
           "ボスネコを たおした！",
-          "しまに へいわが もどった！ ミィと リイコは えいゆうだ！🎉",
+          "うえに 光る とびらが あらわれた…",
+          "ちかづくと つぎの ステージへ いけそうだ！🎉",
         ]);
       }, 500);
     }
@@ -580,10 +636,17 @@
     const ox = -G.cam.x,
       oy = -G.cam.y;
 
-    for (const d of G.decorations) drawSprite(d.sprite, d.x + ox, d.y + oy, 30);
+    // 画面の外にあるものは えがかない（木がたくさんあっても かるく動く）
+    const onScreen = (x, y, m) =>
+      x + ox > -m && x + ox < viewW + m && y + oy > -m && y + oy < viewH + m;
+
+    for (const d of G.decorations) {
+      if (onScreen(d.x, d.y, 40)) drawSprite(d.sprite, d.x + ox, d.y + oy, 30);
+    }
 
     // しょうがいぶつ（かげ＋絵）
     for (const o of G.obstacles) {
+      if (!onScreen(o.x, o.y, 60)) continue;
       ctx.fillStyle = "rgba(0,0,0,0.12)";
       ctx.beginPath();
       ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
@@ -591,9 +654,28 @@
       drawSprite(o.sprite, o.x + ox, o.y + oy, o.r * 1.7);
     }
 
-    for (const c of G.chests) drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34);
+    for (const c of G.chests) {
+      if (onScreen(c.x, c.y, 40))
+        drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34);
+    }
+
+    // とびら
+    for (const g of G.gates) {
+      if (!onScreen(g.x, g.y, 60)) continue;
+      drawSprite("🚪", g.x + ox, g.y + oy, 42);
+      if (!g.open) drawSprite("🔒", g.x + ox, g.y + oy - 30, 22);
+    }
+
+    // 出口（つぎのステージへ。ボスをたおすと 光る）
+    if (G.exit && onScreen(G.exit.x, G.exit.y, 60)) {
+      ctx.globalAlpha = G.bossDefeated ? 1 : 0.4;
+      drawSprite("⛩️", G.exit.x + ox, G.exit.y + oy, 48);
+      ctx.globalAlpha = 1;
+      drawNameTag("つぎのステージへ", G.exit.x + ox, G.exit.y + oy - 36);
+    }
 
     for (const n of G.npcs) {
+      if (!onScreen(n.x, n.y, 40)) continue;
       drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
       drawNameTag(n.name, n.x + ox, n.y + oy - 34);
     }
@@ -636,6 +718,25 @@
       ctx.fillText(f.text, f.x + ox, f.y + oy);
       ctx.globalAlpha = 1;
     }
+
+    drawHud();
+  }
+
+  // あつめたアイテムの かず（とびらの じょうけん）を 左上に表示
+  function drawHud() {
+    const g = G.gates[0];
+    if (!g || g.open) return;
+    const have = G.items[g.requireKey] || 0;
+    const text = (g.hudIcon || "🔮") + " " + have + " / " + g.requireCount;
+    ctx.font = "bold 22px system-ui, 'Segoe UI Emoji', sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 26;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    roundRect(12, 12, w, 38, 11);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, 25, 32);
   }
 
   function drawGrid() {
