@@ -629,12 +629,13 @@
 
   // ---- びょうが ----
   function draw() {
-    ctx.fillStyle = G.world.ground || "#8fca7a";
-    ctx.fillRect(0, 0, viewW, viewH);
-    drawGrid();
-
     const ox = -G.cam.x,
       oy = -G.cam.y;
+
+    ctx.fillStyle = G.world.ground || "#8fca7a";
+    ctx.fillRect(0, 0, viewW, viewH);
+    drawAreas(ox, oy); // あるける じめん（マップ作成ツールで ぬった ところ）
+    drawGrid();
 
     // 画面の外にあるものは えがかない（木がたくさんあっても かるく動く）
     const onScreen = (x, y, m) =>
@@ -651,6 +652,7 @@
       ctx.beginPath();
       ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = "#000"; // かげの うすい色を もどす（絵文字が うすくならないように）
       drawSprite(o.sprite, o.x + ox, o.y + oy, o.r * 1.7);
     }
 
@@ -737,6 +739,26 @@
     ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.fillText(text, 25, 32);
+  }
+
+  // あるける じめんを 色ちがいで ぬる（world.areas がある ときだけ）
+  function drawAreas(ox, oy) {
+    const areas = (G.world && G.world.areas) || [];
+    for (const a of areas) {
+      ctx.fillStyle = a.color || "#8fca7a";
+      if (a.shape === "circle") {
+        if (a.x + a.r + ox < 0 || a.x - a.r + ox > viewW) continue;
+        if (a.y + a.r + oy < 0 || a.y - a.r + oy > viewH) continue;
+        ctx.beginPath();
+        ctx.arc(a.x + ox, a.y + oy, a.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        if (a.x + a.w + ox < 0 || a.x + ox > viewW) continue;
+        if (a.y + a.h + oy < 0 || a.y + oy > viewH) continue;
+        roundRect(a.x + ox, a.y + oy, a.w, a.h, Math.min(18, a.w / 2, a.h / 2));
+        ctx.fill();
+      }
+    }
   }
 
   function drawGrid() {
