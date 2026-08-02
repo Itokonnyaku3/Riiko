@@ -1,12 +1,23 @@
 /*
  * =========================================================
- *  シナリオ（おはなし）データ  ―  あたらしいマップ（stage2）
+ *  シナリオ（おはなし）データ  ―  1面「はじまりの森」
  * =========================================================
  *  ◆マップ（じめん・森・かざり）は マップ作成ツールで 作ります◆
  *      → tools/map-editor.html を ブラウザで ひらく
- *      → できた ファイルを js/maps/◯◯.js に おく
- *      → index.html で よみこみ、下の window.MAPS["◯◯"] を さしかえる
+ *      → 「📚 よむ」で stage1 を よみこむ ／ 「💾 ファイルに だす」で 書きだす
+ *      → できた ファイルを js/maps/stage1.js に おく
  *  ここでは そのマップを よみこんで、てき・たからばこ・セリフを のせます。
+ *
+ *  ぜんたいの けいかく → docs/GAME_PLAN.md
+ * =========================================================
+ *  1面の ながれ
+ *    村（ハナが さらわれる）
+ *      → 森の入口：きこりの タロが 目げき じょうほうを くれる  ★ヒント
+ *      → 森の広場（てきと たたかう れんしゅう）
+ *      → 三叉路：左・右は はずれ。足あとの ある まん中が 正かい  ★なぞ
+ *      → ふたつの 大きな いわ の あいだ＝見た目は 森だが 通り抜けられる  ★なぞの かなめ
+ *      → 森の おく
+ *      → 見晴らしの 高台：遠くに「やみの しろ」が 見える ＋ ハナの こえ
  * =========================================================
  */
 
@@ -14,107 +25,138 @@
 const GAME_CONFIG = { password: "neko" };
 
 // マップ作成ツールで 作った マップを よみこむ
-const MAP = MapData.build(window.MAPS["stage2"]);
+const MAP = MapData.build(window.MAPS["stage1"]);
 
-// よこ一れつに かべを ならべる（とびら用）
-function wallRow(x1, x2, y, gap, r, sprite) {
-  const a = [];
-  for (let x = x1; x <= x2; x += gap) a.push({ x: x, y: y, r: r, sprite: sprite });
-  return a;
-}
+// ===== キャラの え（4ほうこう × 2コマ）=====
+//   絵を さしかえたい ときは、この ファイルの ばしょを かえるだけ。
+//   walk を 書かない キャラは、いままでどおり 絵文字で うごきます。
+const PLAYER_WALK = {
+  down: ["assets/player/down1.png", "assets/player/down2.png"],
+  up: ["assets/player/up1.png", "assets/player/up2.png"],
+  left: ["assets/player/left1.png", "assets/player/left2.png"],
+  right: ["assets/player/right1.png", "assets/player/right2.png"],
+};
+const ENEMY_WALK = {
+  down: ["assets/enemy/down1.png", "assets/enemy/down2.png"],
+  up: ["assets/enemy/up1.png", "assets/enemy/up2.png"],
+  left: ["assets/enemy/left1.png", "assets/enemy/left2.png"],
+  right: ["assets/enemy/right1.png", "assets/enemy/right2.png"],
+};
 
 const SCENARIO = {
-  title: "ねこの相棒とふしぎの島 ― あたらしいマップ",
+  title: "1面 はじまりの森",
 
   // ---- ここから 3つは マップ作成ツールの データ ----
   world: MAP.world,
-  obstacles: MAP.obstacles, // 森の木・かべ（じどうで うまる）
-  decorations: MAP.decorations, // かざり（ぶつからない）
+  obstacles: MAP.obstacles, // 森の木・いわ・かべ（じどうで うまる）
+  decorations: MAP.decorations, // かざり（ぶつからない）※抜け道の 木も これ
 
-  // しゅじんこう（右下の 大部屋から スタート）
-  player: { x: 760, y: 1720, sprite: "👧", name: "リイコ" },
-  partner: { sprite: "🐱", name: "ミィ", maxHp: 30, attack: 4 },
-
-  // てき（道ぞいに 配置）… behavior: patrol / chase / shooter
-  enemies: [
-    { id: "e1", x: 900, y: 1770, sprite: "😾", name: "いたずらネコ", maxHp: 14, attack: 3, behavior: "patrol", speed: 40, patrolRange: 90 },
-    { id: "e2", x: 351, y: 1342, sprite: "🙀", name: "びっくりネコ", maxHp: 18, attack: 3, behavior: "chase", speed: 52, sight: 230 },
-    { id: "e3", x: 620, y: 960, sprite: "😾", name: "やんちゃネコ", maxHp: 16, attack: 3, behavior: "patrol", speed: 45, patrolRange: 120 },
-    { id: "e4", x: 1200, y: 1440, sprite: "🙀", name: "みはりネコ", maxHp: 20, attack: 3, behavior: "chase", speed: 56, sight: 220 }, // 右の宝を まもる
-    { id: "e5", x: 520, y: 1870, sprite: "😼", name: "こそこそネコ", maxHp: 18, attack: 3, behavior: "chase", speed: 50, sight: 200 }, // 下の宝を まもる
-    { id: "boss", x: 1010, y: 810, sprite: "😼", name: "ボスネコ", maxHp: 36, attack: 4, behavior: "shooter", speed: 20, sight: 340, shootInterval: 1.5, bulletSpeed: 150, bulletDamage: 2 },
-  ],
-
-  // たからばこ（ぶつかると あく）。key があると アイテムとして たまる
-  chests: [
-    { id: "c1", x: 500, y: 1980, key: "ほうせき", item: "💎 ほうせき", message: "たからばこを あけた！『ほうせき💎』を てにいれた！（1こめ）" },
-    { id: "c2", x: 240, y: 1130, key: "ほうせき", item: "💎 ほうせき", message: "たからばこを あけた！『ほうせき💎』を てにいれた！（左の おく）" },
-    { id: "c3", x: 1250, y: 1400, key: "ほうせき", item: "💎 ほうせき", message: "たからばこを あけた！『ほうせき💎』を てにいれた！（右・みはりネコの おく）" },
-  ],
-
-  // とびら（ほうせきを 3こ あつめると あく）… 頂上ボスへの 首の ところ
-  gates: [
-    {
-      id: "bossgate",
-      x: 1010,
-      y: 890,
-      r: 46,
-      requireKey: "ほうせき",
-      requireCount: 3,
-      hudIcon: "💎",
-      wall: wallRow(930, 1130, 890, 24, 18, "🧱"),
-      lockedLines: [
-        "がんじょうな とびら。ほうせきの あなが 3つ ある。",
-        "いま {have} / {need} こ。ほうせきを あつめよう！",
-      ],
-      openLines: ["カチッ！ ほうせきが 3つ そろって、とびらが ひらいた！✨"],
-    },
-  ],
-
-  // 出口（ボスを たおすと つかえる）
-  exit: {
-    x: 1013,
-    y: 765,
-    r: 46,
-    lines: ["ここから つぎの ステージへ！", "（つづく！）"],
+  // しゅじんこう（村から スタート）
+  //   maxHp = ハートの かず ／ attack = 剣の つよさ
+  player: {
+    x: 700,
+    y: 2200,
+    sprite: "👧", // 絵が よみこめない ときの よび
+    walk: PLAYER_WALK,
+    size: 68,
+    name: "リイコ",
+    maxHp: 3,
+    attack: 5,
   },
 
-  // とうじょうじんぶつ（ヒントをくれる住人）
+  // ★ミィ（ねこ）は 本当は 3面で 仲間になる よてい。
+  //   いまは 主人公が まだ 剣を もっていない ので、
+  //   たたかう 手だんとして のこしてあります（けいかく Ph1／Ph1.5 で 外します）。
+  partner: { sprite: "🐱", name: "ミィ", maxHp: 30, attack: 4 },
+
+  // てき… behavior: patrol / chase / shooter / dummy(かかし)
+  enemies: [
+    // ★かかし（村。剣の れんしゅう台）… うごかない・こうげきしない・こわれない
+    { id: "kakashi1", x: 870, y: 2250, sprite: "🎃", name: "かかし", maxHp: 999, attack: 0, behavior: "dummy" },
+    { id: "kakashi2", x: 790, y: 2290, sprite: "🎃", name: "かかし", maxHp: 999, attack: 0, behavior: "dummy" },
+
+    { id: "e1", x: 560, y: 1500, sprite: "😾", walk: ENEMY_WALK, size: 58, name: "いたずらネコ", maxHp: 12, attack: 2, behavior: "patrol", speed: 40, patrolRange: 90 },
+    { id: "e2", x: 870, y: 1520, sprite: "😾", walk: ENEMY_WALK, size: 58, name: "いたずらネコ", maxHp: 12, attack: 2, behavior: "patrol", speed: 45, patrolRange: 80 },
+    { id: "e3", x: 330, y: 1345, sprite: "🙀", walk: ENEMY_WALK, size: 58, name: "びっくりネコ", maxHp: 16, attack: 3, behavior: "chase", speed: 52, sight: 210 }, // 左の道（たからばこの ばんにん）
+    { id: "e4", x: 620, y: 900, sprite: "🙀", walk: ENEMY_WALK, size: 58, name: "もりの みはり", maxHp: 18, attack: 3, behavior: "chase", speed: 56, sight: 230 }, // 抜け道の むこう
+  ],
+
+  // たからばこ（ぶつかると あく）
+  chests: [
+    { id: "c1", x: 255, y: 1265, key: "メダル", item: "🏅 メダル", message: "たからばこを あけた！『メダル🏅』を てにいれた！（左の 行きどまり）" },
+    { id: "c2", x: 1040, y: 1500, key: "メダル", item: "🏅 メダル", message: "たからばこを あけた！『メダル🏅』を てにいれた！（森の広場の 右おく）" },
+  ],
+
+  // とびら：1面には なし（この面の「かぎ」は アイテムでは なく“気づくこと”）
+  gates: [],
+
+  // 出口（この面には ボスが いないので requireBoss: false）
+  exit: {
+    x: 710,
+    y: 330,
+    r: 50,
+    requireBoss: false,
+    label: "2面へ",
+    lines: [
+      "リイコは 高台に 立った。",
+      "森の むこう、ずっと 遠くに 黒い しろが 見える…",
+      "「あれが …やみの しろ？ ハナ、まってて！」",
+      "（つづく！ 2面「ささやきの谷」へ）",
+    ],
+  },
+
+  // とうじょうじんぶつ
   npcs: [
     {
       id: "n1",
-      x: 840,
-      y: 1740,
-      sprite: "🧙",
-      name: "もりの おばあさん",
+      x: 500,
+      y: 2120,
+      sprite: "🧓",
+      name: "むらの スミレばあちゃん",
       lines: [
-        "おや、リイコと ミィだね。この森の おくに ボスネコが いるよ。",
-        "ボスへの とびらは、ほうせき💎を 3つ あつめると あくんじゃ。",
-        "1つめは この へやの 下、みなみの たからばこに あるよ。",
-        "うごく：ボタン／WASD、てきや じめんを タップ：ミィが うごくよ。",
+        "リイコ！ ハナちゃんが 黒い マントの やつに さらわれて しまった…！",
+        "北の 森の ほうへ 走っていったよ。",
+        "そこの かかしで 剣の れんしゅうを して おいき。",
+        "うごく：ボタン／WASD　・　🗡️ボタン／Jキー：けんを ふる",
       ],
     },
     {
       id: "n2",
-      x: 500,
-      y: 960,
-      sprite: "🐰",
-      name: "こうさぎ",
+      x: 700,
+      y: 1860,
+      sprite: "🧔",
+      name: "きこりの タロ",
+      // ★この面いちばん だいじな ヒント（P2：説明ではなく“目げき じょうほう”として わたす）
       lines: [
-        "ほうせきは あと 2つ！",
-        "1つは 左のおく、もう1つは 右の みはりネコの おくに あるよ。",
-        "ネコが こわかったら、ミィを タップして たたかってもらってね。",
+        "おう、リイコか。さっき 見たぞ ―― 黒い マントの やつだ。",
+        "あいつ、道を 行かずに 森の 中へ 入って いったんだ。",
+        "ふたつの 大きな いわの あいだを すーっと 通ってな。",
+        "この森は ふしぎでな。木に 見えても 通れる ところが あるんだよ。",
       ],
     },
     {
       id: "n3",
-      x: 962,
-      y: 990,
-      sprite: "🦔",
-      name: "はりねずみ",
+      x: 1150,
+      y: 1265,
+      sprite: "🐰",
+      name: "こうさぎの ミミ",
+      // はずれの道。「だれも 通っていない」という“ない”情報が ヒントになる
       lines: [
-        "このうえの とびらが ボスへの 入り口だよ。",
-        "ほうせきが 3つ そろえば、ひとりでに ひらくんだ。",
+        "こっちの 道？ きょうは だれも 来て ないよ。",
+        "ちょうちょが しずかに とんでる でしょ。だれか 通ったら にげちゃうもん。",
+        "…あ、まん中の 道は なんだか 草が たおれてた かも。",
+      ],
+    },
+    {
+      id: "n4",
+      x: 620,
+      y: 520,
+      sprite: "🦉",
+      name: "ふくろうの ホゥ",
+      lines: [
+        "ホウ。よく あの 森を 抜けてきたな。",
+        "北を ごらん。あの 黒い しろが「やみの しろ」じゃ。",
+        "…風に のって、だれかの 声が きこえないかい？",
       ],
     },
   ],

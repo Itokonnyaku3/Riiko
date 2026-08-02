@@ -1,0 +1,118 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🗺️ マップ作成ツール ― ねこの相棒とふしぎの島</title>
+<link rel="stylesheet" href="map-editor.css" />
+
+<div id="app">
+  <!-- ===== うえの バー（ファイルの こと） ===== -->
+  <header id="topbar">
+    <div class="brand">🗺️ マップ作成ツール</div>
+
+    <label class="f">なまえ <input id="f-name" type="text" size="8" placeholder="stage2" /></label>
+    <label class="f">タイトル <input id="f-title" type="text" size="12" placeholder="ボスのしろ" /></label>
+    <label class="f">よこ <input id="f-w" type="number" min="600" max="12000" step="100" /></label>
+    <label class="f">たて <input id="f-h" type="number" min="600" max="12000" step="100" /></label>
+    <label class="f">そとの色 <input id="f-ground" type="color" /></label>
+
+    <span class="sp"></span>
+
+    <button id="b-undo" title="Ctrl+Z">↶ もどす</button>
+    <button id="b-redo" title="Ctrl+Shift+Z">↷ やりなおす</button>
+    <label class="f">できてる マップ
+      <select id="f-maps"></select>
+    </label>
+    <button id="b-loadmap">📚 よむ</button>
+    <button id="b-open">📂 ファイルから</button>
+    <button id="b-save" class="primary">💾 ファイルに だす</button>
+    <button id="b-code">📋 シナリオ用コード</button>
+    <button id="b-new">✨ さいしょから</button>
+    <button id="b-help">❓ つかいかた</button>
+    <input id="f-file" type="file" accept=".js,.json,application/json,text/javascript" hidden />
+  </header>
+
+  <!-- ===== ひだりの バー（どうぐ） ===== -->
+  <aside id="side">
+    <section>
+      <h3>どうぐ</h3>
+      <div id="tools" class="tools"></div>
+    </section>
+
+    <section id="sec-ground">
+      <h3>じめん（あるける ところ）</h3>
+      <div id="kinds" class="chips"></div>
+      <label class="row">ふで／けしゴム <input id="f-brush" type="range" min="20" max="220" step="5" /><span id="v-brush"></span></label>
+    </section>
+
+    <section id="sec-part">
+      <h3>パーツ（ぶつかる もの）</h3>
+      <div id="parts" class="chips"></div>
+      <label class="row">大きさ <input id="f-partr" type="range" min="8" max="70" step="1" /><span id="v-partr"></span></label>
+      <label class="row">かんかく <input id="f-space" type="range" min="16" max="140" step="2" /><span id="v-space"></span></label>
+      <label class="row">ばらつき <input id="f-jit" type="range" min="0" max="40" step="1" /><span id="v-jit"></span></label>
+    </section>
+
+    <section id="sec-deco">
+      <h3>かざり（ぶつからない）</h3>
+      <div id="decos" class="chips"></div>
+    </section>
+
+    <section id="sec-marker">
+      <h3>めじるし（メモ）</h3>
+      <div id="markers" class="chips"></div>
+      <p class="note">めじるしは ゲームには 出ません。ばしょを メモして、あとで scenario.js に 書きうつす ためのものです。</p>
+    </section>
+
+    <section id="sec-fill">
+      <h3>🌲 まわりを うめる</h3>
+      <label class="row"><input id="f-fillon" type="checkbox" /> あるける ところ いがいを うめる</label>
+      <div id="fillparts" class="chips"></div>
+      <label class="row">大きさ <input id="f-fillr" type="range" min="10" max="60" step="1" /><span id="v-fillr"></span></label>
+      <label class="row">こみぐあい <input id="f-fillgap" type="range" min="26" max="120" step="2" /><span id="v-fillgap"></span></label>
+      <label class="row">ばらつき <input id="f-filljit" type="range" min="0" max="24" step="1" /><span id="v-filljit"></span></label>
+      <label class="row">みちの ひろさ <input id="f-fillmargin" type="range" min="0" max="80" step="2" /><span id="v-fillmargin"></span></label>
+      <button id="b-fillreset" class="wide">けした ぶんを もどす</button>
+    </section>
+
+    <section>
+      <h3>ひょうじ</h3>
+      <label class="row"><input id="f-grid" type="checkbox" /> ますめを 出す</label>
+      <label class="row"><input id="f-hit" type="checkbox" /> ぶつかる まるを 出す</label>
+      <label class="row">ピッタリ そろえる
+        <select id="f-snap">
+          <option value="0">なし</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="32">32</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+      <button id="b-fit" class="wide">🔍 ぜんたいを 見る</button>
+    </section>
+  </aside>
+
+  <!-- ===== まん中（マップ） ===== -->
+  <main id="view">
+    <canvas id="map"></canvas>
+    <div id="status"></div>
+    <div id="walkhint" class="hidden">WASD／やじるし で あるく　・　もういちど「ためしに あるく」で おわり</div>
+  </main>
+</div>
+
+<!-- ===== まんなかに 出る まど ===== -->
+<div id="modal" class="hidden">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <textarea id="modal-text" spellcheck="false"></textarea>
+    <div class="modal-btns">
+      <button id="modal-copy">📋 コピー</button>
+      <button id="modal-ok" class="primary">とじる</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/mapdata.js"></script>
+<!-- できあがっている マップ（ふえたら ここに ふやす） -->
+<script src="../js/maps/stage1.js"></script>
+<script src="../js/maps/stage2.js"></script>
+<script src="map-editor.js"></script>

@@ -18,6 +18,11 @@
   const ENEMY_R = 18;
   const TAP_R = 40; // 敵をタップしたと判定する ゆるさ
 
+  // ---- あるく絵（アニメ）の せってい ----
+  const WALK_DIRS = ["down", "up", "left", "right"];
+  const WALK_FRAME_SEC = 0.16; // 1コマを 出しつづける 時間（小さいほど 足が はやく うごく）
+  const WALK_FOOT = 0.96; // 絵の中で 足のうらが ある たかさ（0=いちばん上, 1=いちばん下）
+
   // ---- 画面サイズ（固定）----
   //   ゲームの中の大きさは いつも LOGICAL_W × LOGICAL_H。
   //   じっさいの表示は、画面に合わせて 拡大/縮小します（アスペクト比は固定）。
@@ -44,11 +49,92 @@
   }
   window.addEventListener("resize", resize);
 
+  // =========================================================
+  //  こうかおん（音の ファイルは つかわず、その場で 作る）
+  // =========================================================
+  const Sfx = (function () {
+    let ac = null;
+    let on = true;
+    function ctx() {
+      if (!ac) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ac = new AC();
+      }
+      if (ac.state === "suspended") ac.resume();
+      return ac;
+    }
+    // ひとつの 音（しゅるい・高さ・長さ・大きさ・すべる先）
+    function tone(type, f0, f1, dur, vol, delay) {
+      const c = ctx();
+      if (!c) return;
+      const t = c.currentTime + (delay || 0);
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+    // ざらっとした 音（ノイズ）
+    function noise(dur, vol, delay) {
+      const c = ctx();
+      if (!c) return;
+      const t = c.currentTime + (delay || 0);
+      const n = Math.floor(c.sampleRate * dur);
+      const buf = c.createBuffer(1, n, c.sampleRate);
+      const d = buf.getChannelData(0);
+      let seed = 12345;
+      for (let i = 0; i < n; i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff; // Math.random を つかわない
+        d[i] = ((seed / 0x7fffffff) * 2 - 1) * (1 - i / n);
+      }
+      const s = c.createBufferSource();
+      const g = c.createGain();
+      s.buffer = buf;
+      g.gain.value = vol;
+      s.connect(g);
+      g.connect(c.destination);
+      s.start(t);
+    }
+    const BANK = {
+      swing: () => { tone("triangle", 780, 320, 0.09, 0.10); noise(0.06, 0.05); },
+      hit: () => { tone("square", 260, 90, 0.11, 0.16); noise(0.07, 0.10); },
+      dummy: () => { tone("triangle", 200, 140, 0.09, 0.10); noise(0.05, 0.06); },
+      hurt: () => { tone("sawtooth", 320, 110, 0.22, 0.14); },
+      down: () => { tone("sawtooth", 400, 70, 0.55, 0.16); },
+      defeat: () => { tone("square", 520, 780, 0.10, 0.12); tone("square", 780, 1040, 0.12, 0.10, 0.09); },
+      chest: () => { tone("sine", 660, 660, 0.10, 0.14); tone("sine", 880, 880, 0.14, 0.12, 0.09); },
+      solved: () => {
+        [523, 659, 784, 1046].forEach((f, i) => tone("sine", f, f, 0.16, 0.12, i * 0.09));
+      },
+      talk: () => { tone("sine", 620, 620, 0.05, 0.06); },
+    };
+    return {
+      play(name) {
+        if (!on) return;
+        try { (BANK[name] || (() => {}))(); } catch (e) {}
+      },
+      toggle(v) { on = v; },
+      warmUp() { ctx(); },
+    };
+  })();
+
   // ---- ゲームの状態 ----
   const G = {
     running: false,
     paused: false, // かいわ中は true
     last: 0,
+    hitstop: 0, // 当たった しゅんかん 止まる
+    shake: 0, // 画面の ゆれ
+    downT: 0, // やられて いる あいだ
+    respawn: { x: 0, y: 0 }, // やられたとき もどる ところ
     cam: { x: 0, y: 0 },
     world: null,
     player: null,
@@ -83,7 +169,21 @@
       moving: false,
       stuckT: 0,
       trail: [], // 通ったあと（ねこが これを おいかける）
+      // ---- 剣で たたかう（Ph1）----
+      dirX: 0,
+      dirY: 1, // むいている ほう（さいごに 動いた ほう）
+      maxHp: scenario.player.maxHp || 3, // ハートの かず
+      hp: scenario.player.maxHp || 3,
+      attack: scenario.player.attack || 5,
+      atkT: 0, // 剣を ふって いる あいだ（見た目）
+      atkCd: 0, // つぎに ふれるまで
+      invT: 0, // むてき じかん（つづけて 減らない）
     };
+    initWalker(G.player, scenario.player, 68); // あるく絵（4方向×2まい）
+    G.respawn = { x: scenario.player.x, y: scenario.player.y };
+    G.downT = 0;
+    G.hitstop = 0;
+    G.shake = 0;
 
     G.partner = {
       x: scenario.player.x - 44,
@@ -105,15 +205,25 @@
       orbitA: 0,
     };
 
-    G.enemies = scenario.enemies.map((e) => ({
-      ...e,
-      hp: e.maxHp,
-      alive: true,
-      atkCd: 0,
-      shootCd: e.shootInterval ? e.shootInterval * 0.6 : 0,
-      phase: 0,
-      home: { x: e.x, y: e.y },
-    }));
+    G.enemies = scenario.enemies.map((e) => {
+      const ent = {
+        ...e,
+        hp: e.maxHp,
+        alive: true,
+        atkCd: 0,
+        shootCd: e.shootInterval ? e.shootInterval * 0.6 : 0,
+        phase: 0,
+        home: { x: e.x, y: e.y },
+        dummy: e.behavior === "dummy", // かかし＝うごかない・こうげきしない・こわれない
+        touchCd: 0, // ぶつかって リイコに ダメージを あたえる 間かく
+        knockX: 0,
+        knockY: 0,
+        knockT: 0, // 斬られて うしろに さがる
+        flashT: 0, // 斬られて 白く 光る
+      };
+      initWalker(ent, e, 58); // あるく絵（walk を 書いた てき だけ）
+      return ent;
+    });
 
     G.chests = scenario.chests.map((c) => ({ ...c, opened: false }));
     G.npcs = scenario.npcs.map((n) => ({ ...n, _inside: false }));
@@ -135,6 +245,58 @@
     G.paused = false;
     const dlg = document.getElementById("dialogue");
     if (dlg) dlg.classList.add("hidden");
+  }
+
+  // ---- あるく絵を よみこむ ----
+  //   scenario.js の walk:{down:[…], up:[…], left:[…], right:[…]} を 画像に する。
+  //   1つでも 足りなければ null（＝絵文字の まま あそべる）。
+  const walkCache = new Map(); // 同じ絵は 1回だけ よみこむ
+  function loadWalk(paths) {
+    if (!paths) return null;
+    if (walkCache.has(paths)) return walkCache.get(paths);
+    let set = {};
+    for (const dir of WALK_DIRS) {
+      const list = paths[dir];
+      if (!list || list.length < 2) {
+        set = null;
+        break;
+      }
+      set[dir] = list.slice(0, 2).map((src) => {
+        const img = new Image();
+        img.src = src;
+        return img;
+      });
+    }
+    walkCache.set(paths, set);
+    return set;
+  }
+
+  // キャラに あるく絵の じょうたいを もたせる
+  function initWalker(ent, src, defaultSize) {
+    ent.walk = loadWalk(src.walk);
+    ent.size = src.size || defaultSize;
+    ent.dir = src.dir || "down"; // いま むいている ほうこう
+    ent.frame = 0; // いま出している コマ（0＝立ち / 1＝ふみだし）
+    ent.animT = 0; // コマを 切りかえるまでの 時間かせぎ
+  }
+
+  // うごいた ほうこうから むきを きめて、コマを すすめる
+  //   dx, dy … このフレームで うごいた 向き（大きさは 気にしない）
+  function advanceWalk(ent, dt, dx, dy) {
+    if (Math.abs(dx) < 1e-3 && Math.abs(dy) < 1e-3) {
+      ent.animT = 0; // とまったら 1まいめ（立ち）に もどす
+      ent.frame = 0;
+      return;
+    }
+    // ななめの ときは よこむき を ゆうせん
+    if (Math.abs(dx) >= Math.abs(dy)) ent.dir = dx < 0 ? "left" : "right";
+    else ent.dir = dy < 0 ? "up" : "down";
+
+    ent.animT += dt;
+    while (ent.animT >= WALK_FRAME_SEC) {
+      ent.animT -= WALK_FRAME_SEC;
+      ent.frame = 1 - ent.frame;
+    }
   }
 
   // ---- べんりな計算 ----
@@ -277,9 +439,120 @@
     G.partner.gotoY = clamp(wy, 10, G.world.height - 10);
   }
 
+  // =========================================================
+  //  剣で たたかう（Ph1）
+  // =========================================================
+  const SWORD_REACH = 56; // 剣の とどく ながさ
+  const SWORD_ARC = 0.3; // 前の どのくらい 広い はんいに 当たるか（小さいほど 広い）
+
+  function swingSword() {
+    const p = G.player;
+    if (!G.running || G.paused || G.downT > 0) return;
+    if (p.atkCd > 0) return;
+    p.atkCd = 0.4;
+    p.atkT = 0.18;
+    Sfx.play("swing");
+
+    // 前方の おうぎ形に いる てきに 当たる
+    let hitAny = false;
+    for (const e of G.enemies) {
+      if (!e.alive) continue;
+      const dx = e.x - p.x,
+        dy = e.y - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.001;
+      if (d > SWORD_REACH + ENEMY_R) continue;
+      const facing = (dx / d) * p.dirX + (dy / d) * p.dirY;
+      if (facing < SWORD_ARC) continue; // うしろ・よこすぎる ものには 当たらない
+      hitEnemy(e, p.attack, dx / d, dy / d);
+      hitAny = true;
+    }
+    return hitAny;
+  }
+
+  // てきに ダメージ（剣でも ミィでも ここを 通す＝手ざわりを そろえる）
+  function hitEnemy(e, dmg, nx, ny) {
+    e.flashT = 0.12;
+    e.knockX = (nx || 0) * 260;
+    e.knockY = (ny || 0) * 260;
+    e.knockT = 0.16;
+    G.hitstop = 0.05; // ★当たった しゅんかん 止まる
+    G.shake = 5; // ★画面が すこし ゆれる
+
+    if (e.dummy) {
+      // かかしは こわれない。手ごたえだけ かえす
+      addFloater(e.x, e.y - 38, "コンッ！", "#ffe36b");
+      Sfx.play("dummy");
+      return;
+    }
+    e.hp -= dmg;
+    addFloater(e.x, e.y - 38, "-" + dmg, "#fff");
+    Sfx.play("hit");
+    if (e.hp <= 0) defeatEnemy(e);
+  }
+
+  // リイコが ダメージを うける
+  function damagePlayer(n) {
+    const p = G.player;
+    if (p.invT > 0 || G.downT > 0) return;
+    p.hp -= n;
+    p.invT = 1.0; // 1びょうは つづけて 減らない
+    G.shake = 10;
+    addFloater(p.x, p.y - 44, "-" + n, "#ff8f8f");
+    Sfx.play("hurt");
+    if (p.hp <= 0) {
+      p.hp = 0;
+      playerDown();
+    }
+  }
+
+  function playerDown() {
+    G.downT = 1.6; // これが 0 に なると 再かいし
+    addFloater(G.player.x, G.player.y - 46, "たおれた…", "#ff8f8f");
+    Sfx.play("down");
+  }
+
+  function respawnPlayer() {
+    const p = G.player;
+    p.x = G.respawn.x;
+    p.y = G.respawn.y;
+    p.hp = p.maxHp;
+    p.invT = 1.5;
+    p.trail.length = 0;
+    G.bullets = [];
+    // てきは もとの ばしょへ もどす（たおした てきは たおしたまま）
+    for (const e of G.enemies) {
+      if (!e.alive) continue;
+      e.x = e.home.x;
+      e.y = e.home.y;
+      e.hp = e.maxHp;
+      e.knockT = 0;
+    }
+    if (G.partner) {
+      G.partner.x = p.x - 44;
+      G.partner.y = p.y + 26;
+      G.partner.hp = G.partner.maxHp;
+      G.partner.state = "follow";
+      G.partner.target = null;
+    }
+  }
+
   // ---- こうしん（毎フレーム） ----
   function update(dt) {
     if (G.paused) return;
+    // ★ヒットストップ：当たった しゅんかん だけ 世界を 止める
+    if (G.hitstop > 0) {
+      G.hitstop -= dt;
+      return;
+    }
+    if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 40);
+
+    // やられて いる あいだ
+    if (G.downT > 0) {
+      G.downT -= dt;
+      updateFloaters(dt);
+      if (G.downT <= 0) respawnPlayer();
+      return;
+    }
     updatePlayer(dt);
     checkTriggers(); // ぶつかって発生するイベント
     updatePartner(dt);
@@ -302,12 +575,24 @@
     if (G.keys["ArrowUp"] || G.keys["w"]) ky -= 1;
     if (G.keys["ArrowDown"] || G.keys["s"]) ky += 1;
 
+    // 剣の タイマー
+    if (p.atkT > 0) p.atkT -= dt;
+    if (p.atkCd > 0) p.atkCd -= dt;
+    if (p.invT > 0) p.invT -= dt;
+
     // 主人公は キーボード／ほうこうボタン だけで うごく
     if (kx || ky) {
       const len = Math.sqrt(kx * kx + ky * ky) || 1;
-      p.x += (kx / len) * p.speed * dt;
-      p.y += (ky / len) * p.speed * dt;
+      p.dirX = kx / len; // むいている ほうを おぼえる（剣は こっちに 当たる）
+      p.dirY = ky / len;
+      // 剣を ふって いる あいだは すこし ゆっくり
+      const sp = p.atkT > 0 ? p.speed * 0.45 : p.speed;
+      p.x += (kx / len) * sp * dt;
+      p.y += (ky / len) * sp * dt;
       resolveObstacles(p, PLAYER_R);
+      advanceWalk(p, dt, kx, ky); // あるく絵の むき・コマ
+    } else {
+      advanceWalk(p, dt, 0, 0); // とまったら 立ちの 絵
     }
 
     p.x = clamp(p.x, 20, G.world.width - 20);
@@ -322,6 +607,12 @@
     if (p.trail.length > 70) p.trail.shift();
   }
 
+  // 出口が つかえるか（ボスの いない ステージでは requireBoss:false に する）
+  function exitReady() {
+    if (!G.exit) return false;
+    return G.exit.requireBoss === false || G.bossDefeated;
+  }
+
   // ---- ぶつかって発生するイベント（宝箱・会話・とびら・出口） ----
   function checkTriggers() {
     const p = G.player;
@@ -332,6 +623,7 @@
         c.opened = true;
         if (c.key) G.items[c.key] = (G.items[c.key] || 0) + 1;
         addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
+        Sfx.play("chest");
         Dialogue.open("たからばこ", [c.message]);
         return;
       }
@@ -345,6 +637,7 @@
         g.open = true;
         G.obstacles = G.obstacles.filter((o) => o.gateId !== g.id);
         addFloater(g.x, g.y - 30, "ひらいた！✨", "#ffe36b");
+        Sfx.play("solved");
         Dialogue.open("とびら", g.openLines || ["とびらが ひらいた！"]);
         return;
       }
@@ -365,16 +658,17 @@
       const near = dist(p.x, p.y, n.x, n.y) < PLAYER_R + 30;
       if (near && !n._inside) {
         n._inside = true;
+        Sfx.play("talk");
         Dialogue.open(n.name, n.lines);
         return;
       }
       if (!near) n._inside = false;
     }
 
-    // 出口（ボスをたおすと つかえる）
+    // 出口（ボスをたおすと つかえる。requireBoss:false なら いつでも つかえる）
     if (G.exit) {
       const near = dist(p.x, p.y, G.exit.x, G.exit.y) < (G.exit.r || 40);
-      if (near && G.bossDefeated && !G.exit._done) {
+      if (near && exitReady() && !G.exit._done) {
         G.exit._done = true;
         Dialogue.open("しゅつぐち", G.exit.lines || ["つぎの ステージへ！"]);
         return;
@@ -423,9 +717,8 @@
         pt.atkCd -= dt;
         if (pt.atkCd <= 0) {
           pt.atkCd = 0.7;
-          e.hp -= pt.attack;
-          addFloater(e.x, e.y - 38, "-" + pt.attack, "#fff");
-          if (e.hp <= 0) defeatEnemy(e);
+          const d2 = dist(pt.x, pt.y, e.x, e.y) || 1;
+          hitEnemy(e, pt.attack, (e.x - pt.x) / d2, (e.y - pt.y) / d2);
         }
       }
       if (pt.hp <= 0) faint(pt);
@@ -491,6 +784,27 @@
     for (const e of G.enemies) {
       if (!e.alive) continue;
       e.phase += dt * 4;
+      if (e.flashT > 0) e.flashT -= dt;
+      if (e.touchCd > 0) e.touchCd -= dt;
+
+      // 斬られて うしろに さがる
+      if (e.knockT > 0) {
+        e.knockT -= dt;
+        e.x += e.knockX * dt;
+        e.y += e.knockY * dt;
+        e.knockX *= 0.86;
+        e.knockY *= 0.86;
+        resolveObstacles(e, ENEMY_R);
+      }
+
+      // かかしは うごかない・こうげきしない
+      if (e.dummy) continue;
+
+      // リイコに ぶつかると ダメージ
+      if (dist(e.x, e.y, p.x, p.y) < PLAYER_R + ENEMY_R && e.touchCd <= 0) {
+        e.touchCd = 1.0;
+        damagePlayer(e.attack);
+      }
 
       const engaged =
         pt.state === "attack" &&
@@ -499,6 +813,7 @@
 
       if (engaged) {
         // せっきん戦：うごかず はんげき
+        advanceWalk(e, dt, 0, 0);
         e.atkCd -= dt;
         if (e.atkCd <= 0) {
           e.atkCd = 1.0;
@@ -507,7 +822,11 @@
           if (pt.hp <= 0) faint(pt);
         }
       } else {
+        const px = e.x,
+          py = e.y;
         moveEnemy(e, dt, p);
+        // じっさいに うごいた 向きから むきと コマを きめる
+        advanceWalk(e, dt, e.x - px, e.y - py);
       }
 
       // 弾を撃つタイプ（せっきん戦でも 撃つ）
@@ -558,8 +877,11 @@
   function defeatEnemy(e) {
     e.alive = false;
     addFloater(e.x, e.y - 30, "たおした！✨", "#ffe36b");
-    G.partner.target = null;
-    G.partner.state = "follow";
+    Sfx.play("defeat");
+    if (G.partner) {
+      G.partner.target = null;
+      G.partner.state = "follow";
+    }
 
     if (e.id === "boss") {
       G.bossDefeated = true;
@@ -629,8 +951,16 @@
 
   // ---- びょうが ----
   function draw() {
-    const ox = -G.cam.x,
-      oy = -G.cam.y;
+    // ★画面の ゆれ（当たった とき・ダメージを うけた とき）
+    let sx = 0,
+      sy = 0;
+    if (G.shake > 0) {
+      const t = G.shake;
+      sx = Math.sin(t * 3.1) * t * 0.5;
+      sy = Math.cos(t * 2.3) * t * 0.5;
+    }
+    const ox = -G.cam.x + sx,
+      oy = -G.cam.y + sy;
 
     ctx.fillStyle = G.world.ground || "#8fca7a";
     ctx.fillRect(0, 0, viewW, viewH);
@@ -641,8 +971,10 @@
     const onScreen = (x, y, m) =>
       x + ox > -m && x + ox < viewW + m && y + oy > -m && y + oy < viewH + m;
 
+    // かざり（ぶつからない）。size を 書くと 大きさを かえられる。
+    //   ※木と おなじ 大きさ(44)に すると「通り抜けできる森」が 作れる。
     for (const d of G.decorations) {
-      if (onScreen(d.x, d.y, 40)) drawSprite(d.sprite, d.x + ox, d.y + oy, 30);
+      if (onScreen(d.x, d.y, 40)) drawSprite(d.sprite, d.x + ox, d.y + oy, d.size || 30);
     }
 
     // しょうがいぶつ（かげ＋絵）
@@ -670,10 +1002,10 @@
 
     // 出口（つぎのステージへ。ボスをたおすと 光る）
     if (G.exit && onScreen(G.exit.x, G.exit.y, 60)) {
-      ctx.globalAlpha = G.bossDefeated ? 1 : 0.4;
+      ctx.globalAlpha = exitReady() ? 1 : 0.4;
       drawSprite("⛩️", G.exit.x + ox, G.exit.y + oy, 48);
       ctx.globalAlpha = 1;
-      drawNameTag("つぎのステージへ", G.exit.x + ox, G.exit.y + oy - 36);
+      drawNameTag(G.exit.label || "つぎのステージへ", G.exit.x + ox, G.exit.y + oy - 36);
     }
 
     for (const n of G.npcs) {
@@ -685,8 +1017,18 @@
     for (const e of G.enemies) {
       if (!e.alive) continue;
       const bob = Math.sin(e.phase) * 3;
-      drawSprite(e.sprite, e.x + ox, e.y + oy + bob, 40);
-      drawHpBar(e.x + ox, e.y + oy - 32, e.hp, e.maxHp, "#ff6b6b");
+      // 斬られた しゅんかん 白く 光る
+      if (e.flashT > 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.beginPath();
+        ctx.arc(e.x + ox, e.y + oy + bob, 24, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      let top = 32; // HPバー・なまえを 出す たかさ（頭の うえ）
+      if (drawWalker(e, e.x + ox, e.y + oy, bob)) top = e.size * 0.5 + 6;
+      else drawSprite(e.sprite, e.x + ox, e.y + oy + bob, 40);
+      if (!e.dummy) drawHpBar(e.x + ox, e.y + oy - top, e.hp, e.maxHp, "#ff6b6b");
+      else drawNameTag(e.name || "かかし", e.x + ox, e.y + oy - top);
     }
 
     // 弾
@@ -707,7 +1049,34 @@
     drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
     if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
 
-    drawSprite(G.player.sprite, G.player.x + ox, G.player.y + oy, 42);
+    // ---- しゅじんこう（剣を ふる 見た目つき）----
+    const pl = G.player;
+    // 剣：むいている ほうに 弧を えがく
+    if (pl.atkT > 0) {
+      const prog = 1 - pl.atkT / 0.18; // 0→1
+      const base = Math.atan2(pl.dirY, pl.dirX);
+      const a0 = base - 1.0 + prog * 2.0;
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(pl.x + ox, pl.y + oy, SWORD_REACH * 0.8, a0 - 0.5, a0 + 0.5);
+      ctx.stroke();
+      drawSprite(
+        "🗡️",
+        pl.x + ox + Math.cos(a0) * SWORD_REACH * 0.7,
+        pl.y + oy + Math.sin(a0) * SWORD_REACH * 0.7,
+        30
+      );
+    }
+    // むてき中は ちかちかさせる
+    if (G.downT > 0) ctx.globalAlpha = 0.5;
+    else if (pl.invT > 0) ctx.globalAlpha = Math.sin(pl.invT * 30) > 0 ? 0.35 : 1;
+    // あるく絵。まだ よみこめて いなければ 絵文字で あそべる
+    if (!drawWalker(pl, pl.x + ox, pl.y + oy, 0)) {
+      drawSprite(pl.sprite, pl.x + ox, pl.y + oy, 42);
+    }
+    ctx.globalAlpha = 1;
 
     for (const f of G.floaters) {
       ctx.globalAlpha = clamp(f.life / 0.9, 0, 1);
@@ -722,10 +1091,39 @@
     }
 
     drawHud();
+    drawDown();
+  }
+
+  // 左上：ハート（リイコの げんき）
+  function drawHearts() {
+    const p = G.player;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = "26px system-ui, 'Segoe UI Emoji', sans-serif";
+    for (let i = 0; i < p.maxHp; i++) {
+      ctx.globalAlpha = i < p.hp ? 1 : 0.28;
+      ctx.fillText(i < p.hp ? "❤️" : "🤍", 14 + i * 30, 26);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // やられた ときの 表示
+  function drawDown() {
+    if (G.downT <= 0) return;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 40px system-ui, 'Segoe UI Emoji', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("たおれた…", viewW / 2, viewH / 2 - 16);
+    ctx.font = "20px system-ui, sans-serif";
+    ctx.fillText("すぐ もどるよ！", viewW / 2, viewH / 2 + 26);
   }
 
   // あつめたアイテムの かず（とびらの じょうけん）を 左上に表示
   function drawHud() {
+    drawHearts();
     const g = G.gates[0];
     if (!g || g.open) return;
     const have = G.items[g.requireKey] || 0;
@@ -777,6 +1175,28 @@
       ctx.lineTo(viewW, y);
     }
     ctx.stroke();
+  }
+
+  // あるく絵で えがく。まだ よみこめて いなければ false を かえす
+  //   絵は 128×128 の 正方形で、キャラが 下に そろえて 入っています。
+  //   なので (x, y) を まん中に して そのまま おけば ちょうど よい イチに なります。
+  //   bob … ふわふわ うかせる ぶん（かげは じめんに のこす）
+  function drawWalker(ent, x, y, bob) {
+    const set = ent.walk && ent.walk[ent.dir];
+    const img = set && set[ent.frame];
+    if (!img || !img.complete || !img.naturalWidth) return false;
+
+    const s = ent.size;
+    const footY = y - s / 2 + s * WALK_FOOT; // 足のうらの たかさ
+
+    // 足もとの かげ（ほかの しょうがいぶつと 同じ かんじ）
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.beginPath();
+    ctx.ellipse(x, footY - 2, s * 0.22, s * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.drawImage(img, x - s / 2, y - s / 2 + (bob || 0), s, s);
+    return true;
   }
 
   function drawSprite(sprite, x, y, size) {
@@ -870,8 +1290,38 @@
     canvas.addEventListener("pointermove", (ev) => {
       if (ev.buttons) handlePointer(ev.clientX, ev.clientY, false);
     });
-    window.addEventListener("keydown", (e) => (G.keys[e.key] = true));
-    window.addEventListener("keyup", (e) => (G.keys[e.key] = false));
+    window.addEventListener("keydown", (e) => {
+      // 剣：J か スペース
+      if (e.key === "j" || e.key === "J" || e.key === " ") {
+        e.preventDefault();
+        if (!G.keys["_sword"]) swingSword(); // おしっぱなしでは 連打しない
+        G.keys["_sword"] = true;
+        return;
+      }
+      G.keys[e.key] = true;
+    });
+    window.addEventListener("keyup", (e) => {
+      if (e.key === "j" || e.key === "J" || e.key === " ") {
+        G.keys["_sword"] = false;
+        return;
+      }
+      G.keys[e.key] = false;
+    });
+
+    // 剣ボタン（画面）
+    const sb = document.getElementById("btn-sword");
+    if (sb) {
+      sb.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        sb.classList.add("pressed");
+        swingSword();
+      });
+      const off = () => sb.classList.remove("pressed");
+      sb.addEventListener("pointerup", off);
+      sb.addEventListener("pointercancel", off);
+      sb.addEventListener("pointerleave", off);
+    }
   }
 
   let inputBound = false;
@@ -880,6 +1330,7 @@
   window.RiikoGame = {
     start(scenario) {
       resize();
+      Sfx.warmUp(); // スタートボタンを おした ながれで 音を つかえるように する
       setup(scenario);
       if (!inputBound) {
         bindInput();
@@ -908,6 +1359,13 @@
       press: (key, down) => {
         G.keys[key] = down;
       },
+      swing: () => swingSword(),
+      face: (x, y) => {
+        const d = Math.hypot(x, y) || 1;
+        G.player.dirX = x / d;
+        G.player.dirY = y / d;
+      },
+      hurt: (n) => damagePlayer(n || 1),
     },
   };
 })();

@@ -23,7 +23,7 @@
     <canvas id="game"></canvas>
 
     <!-- あそびかたの小さなヒント -->
-    <div id="hint">うごく：ボタン／WASD　・　てきをタップ：ねこが たたかう　・　じめんをタップ：ねこが すすむ</div>
+    <div id="hint">うごく：ボタン／WASD　・　🗡️ボタン／Jキー：けんを ふる　・　てきをタップ：ねこが たたかう</div>
 
     <!-- かいわのウィンドウ -->
     <div id="dialogue" class="hidden">
@@ -39,11 +39,17 @@
       <button class="dbtn right" data-dir="ArrowRight" aria-label="みぎ">▶</button>
       <button class="dbtn down" data-dir="ArrowDown" aria-label="した">▼</button>
     </div>
+
+    <!-- けん（こうげき）。もっている ものだけ ここに ふえる -->
+    <div id="actions">
+      <button id="btn-sword" class="abtn" aria-label="けん">🗡️</button>
+    </div>
   </div>
 </div>
 
-<script src="js/mapdata.js?v=6"></script>
-<script src="js/maps/stage2.js?v=6"></script>
-<script src="js/scenario.js?v=6"></script>
-<script src="js/engine.js?v=6"></script>
-<script src="js/main.js?v=6"></script>
+<script src="js/mapdata.js?v=9"></script>
+<!-- できあがっている マップ（ふえたら ここに ふやす） -->
+<script src="js/maps/stage1.js?v=9"></script>
+<script src="js/scenario.js?v=9"></script>
+<script src="js/engine.js?v=9"></script>
+<script src="js/main.js?v=9"></script>
