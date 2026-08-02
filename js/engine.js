@@ -169,7 +169,26 @@
     titleT: 0, // 面の なまえを 出して いる のこり 時間
     titleText: "",
     cut: null, // カットシーン（カメラを 動かして セリフを 出す）
+    fairy: null, // 仲間1 妖精ピカ（加入するまでは null）
+    // ---- こまって いないか 見はる（Ph3.5 / Ph5）----
+    stuckT: 0, // すすまなく なって から の 時間
+    hintLv: 0, // 出した ヒントの こさ（0＝まだ / 1〜3）
+    guide: null, // ヒント3で 光らせる ばしょ
+    guideT: 0,
+    deaths: {}, // どの てきに 何回 やられたか
+    lastFoe: null, // さいごに ダメージを くれた てき
+    helpMode: false, // おたすけモード（手で えらべる）
   };
+
+  // ヒントが 出る までの 時間（びょう）
+  const HINT_SEC = [90, 180, 300];
+
+  // ---- 「すすんだ」と きろく する（ヒントの タイマーを もどす）----
+  function madeProgress() {
+    G.stuckT = 0;
+    G.hintLv = 0;
+    G.guide = null;
+  }
 
   // ---- そのときに 出す セリフを えらぶ ----
   //   ふつうは lines。variants を 書くと、じょうけんや 話した 回数で かえられる。
@@ -320,6 +339,218 @@
     return c.look;
   }
 
+  // =========================================================
+  //  仲間1：妖精ピカ（Ph4）
+  // =========================================================
+  //  ・しゅじんこうの ななめ上を ふわふわ とぶ
+  //  ・かってに しゃべる（おなじ ことばは つづけて 言わない）
+  //  ・ヒントを 言う（💡ボタン／こまった とき）
+  //  ・ピンチに なると 薬を とりに 飛んで いって もどってくる
+  function makeFairy(src, px, py) {
+    return {
+      sprite: src.sprite || "🧚",
+      name: src.name || "ピカ",
+      size: src.size || 34,
+      x: px + 30,
+      y: py - 40,
+      bob: 0,
+      // おしゃべり
+      say: "", // いま 出て いる ふきだし
+      sayT: 0,
+      talkCd: 6, // つぎに しゃべるまで
+      lastSaid: "", // つづけて 同じ ことを 言わない
+      // 薬
+      potionsLeft: src.potions == null ? 2 : src.potions, // 1つの 面で 何回まで
+      errand: null, // 薬を とりに 行って いる とちゅう
+      lines: src.lines || {},
+    };
+  }
+
+  // ピカに しゃべらせる
+  function speakFairy(text, sec) {
+    const f = G.fairy;
+    if (!f || !text) return;
+    if (text === f.lastSaid) return; // つづけて 同じ ことは 言わない
+    f.say = text;
+    f.sayT = sec || 3.2;
+    f.lastSaid = text;
+    f.talkCd = 7 + (text.length % 4);
+  }
+
+  // そのときの ようすに あった ひとことを えらぶ
+  function fairyChatter(dt) {
+    const f = G.fairy;
+    const p = G.player;
+    f.talkCd -= dt;
+    if (f.talkCd > 0) return;
+
+    const L = f.lines;
+    let pool = L.idle || [];
+    // てきが 近い
+    const near = G.enemies.some(
+      (e) => e.alive && !e.dummy && dist(e.x, e.y, p.x, p.y) < 200
+    );
+    if (near && L.enemy) pool = L.enemy;
+    // たからばこが 近い
+    else if (
+      L.chest &&
+      G.chests.some((c) => !c.opened && dist(c.x, c.y, p.x, p.y) < 220)
+    )
+      pool = L.chest;
+    // ハートが へって いる
+    else if (L.hurt && p.hp < p.maxHp) pool = L.hurt;
+
+    if (!pool.length) {
+      f.talkCd = 5;
+      return;
+    }
+    // Math.random は つかわない（ならびを ずらして えらぶ）
+    const i = Math.floor((G.stuckT * 7 + p.x + p.y) % pool.length);
+    speakFairy(pool[i], 3.2);
+  }
+
+  // ピンチ → 薬を とりに 行く
+  function fairyPotion(dt) {
+    const f = G.fairy;
+    const p = G.player;
+    if (f.errand) {
+      f.errand.t -= dt;
+      if (f.errand.t <= 0) {
+        // もどって きた
+        p.hp = Math.min(p.maxHp, p.hp + 1);
+        addFloater(p.x, p.y - 60, "ピカが 薬を くれた！💊", "#9fd");
+        Sfx.play("chest");
+        speakFairy("はい、これ のんで！", 3);
+        f.errand = null;
+      }
+      return;
+    }
+    if (f.potionsLeft <= 0) return;
+    if (p.hp > 1 || G.downT > 0) return; // ハートが 1つに なったら
+    f.potionsLeft -= 1;
+    f.errand = { t: 2.4 };
+    speakFairy("あぶない！ 薬 とってくる！", 3);
+  }
+
+  // 面の とちゅうで 仲間に なった とき、その場で 出てくる（要件C6：うれしい 出来事に する）
+  function checkFairyJoin() {
+    if (G.fairy) return;
+    const sc = window.STAGES[G.stageId];
+    const src = sc && sc.fairy;
+    if (!src || !src.if || !G.flags[src.if]) return;
+    G.fairy = makeFairy(src, G.player.x, G.player.y);
+    const btn = document.getElementById("btn-hint");
+    if (btn) btn.classList.remove("hidden");
+    addFloater(G.player.x, G.player.y - 74, (src.name || "ピカ") + "が なかまに なった！✨", "#ffe36b");
+    Sfx.play("solved");
+    speakFairy("よろしくね、リイコ！", 4);
+    madeProgress();
+  }
+
+  function updateFairy(dt) {
+    const f = G.fairy;
+    if (!f) return;
+    const p = G.player;
+    f.bob += dt * 3.4;
+    if (f.sayT > 0) f.sayT -= dt;
+
+    // 薬を とりに 行って いる あいだは はなれる
+    let tx, ty;
+    if (f.errand) {
+      tx = p.x + 140;
+      ty = p.y - 160;
+    } else {
+      tx = p.x + 34 + Math.sin(f.bob * 0.7) * 10;
+      ty = p.y - 46 + Math.sin(f.bob) * 7;
+    }
+    f.x += (tx - f.x) * Math.min(1, dt * 4.5);
+    f.y += (ty - f.y) * Math.min(1, dt * 4.5);
+
+    fairyChatter(dt);
+    fairyPotion(dt);
+  }
+
+  function drawFairy(ox, oy) {
+    const f = G.fairy;
+    if (!f) return;
+    drawSprite(f.sprite, f.x + ox, f.y + oy, f.size);
+    if (f.sayT > 0) drawBubble(f.say, f.x + ox, f.y + oy - 26);
+  }
+
+  // ふきだし（ピカの ひとこと。かいわ まどは 出さない＝止まらない）
+  function drawBubble(text, x, y) {
+    if (!text) return;
+    ctx.font = "14px system-ui, 'Segoe UI Emoji', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 18;
+    const bx = clamp(x, w / 2 + 4, viewW - w / 2 - 4);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    roundRect(bx - w / 2, y - 13, w, 26, 12);
+    ctx.fill();
+    ctx.fillStyle = "#2b3a2f";
+    ctx.fillText(text, bx, y);
+  }
+
+  // =========================================================
+  //  ヒント（Ph3.5）
+  // =========================================================
+  //  シナリオに こう 書く：
+  //    hints: [
+  //      { ifNot: "sawFootprints",
+  //        lines: ["（ぼんやり）", "（すこし くわしく）", "（ほとんど 答え）"],
+  //        point: { x: 700, y: 1280 } },   // ヒント3で 光る ばしょ
+  //      …うえから じゅんに 見て、さいしょに 当てはまった ものを つかう
+  //    ]
+  //  ★1面は 妖精ピカが いないので、リイコの「思い出し」として 出る。
+  //    2面いこうは ピカが しゃべる（fairy が いれば そちらが 言う）。
+  function currentHint() {
+    const sc = window.STAGES[G.stageId];
+    const list = (sc && sc.hints) || [];
+    for (const h of list) if (condOk(h)) return h;
+    return null;
+  }
+
+  // ヒントを 出す（lv: 1〜3）
+  function showHint(lv) {
+    const h = currentHint();
+    if (!h) return false;
+    const line = h.lines[Math.min(lv, h.lines.length) - 1];
+    if (!line) return false;
+    const p = G.player;
+    if (G.fairy) {
+      // ピカが いる ときは ピカが 言う
+      speakFairy(line, 4.5);
+    } else {
+      addFloater(p.x, p.y - 52, line, "#dff");
+    }
+    Sfx.play("talk");
+    // ヒント3では 行き先を 光らせる
+    if (lv >= 3 && h.point) {
+      G.guide = { x: h.point.x, y: h.point.y };
+      G.guideT = 25; // しばらく 光って いる
+    }
+    return true;
+  }
+
+  // こまって いないか 見はる
+  function updateStuck(dt) {
+    if (G.paused || G.cut || G.downT > 0) return;
+    G.stuckT += dt;
+    if (G.guideT > 0) G.guideT -= dt;
+    if (G.guideT <= 0) G.guide = null;
+
+    const want = G.helpMode ? 1 : 0; // おたすけモードは 早めに 出す
+    for (let lv = 3; lv >= 1; lv--) {
+      const need = HINT_SEC[lv - 1] * (G.helpMode ? 0.5 : 1);
+      if (G.hintLv < lv && G.stuckT >= need) {
+        if (showHint(lv)) G.hintLv = lv;
+        return;
+      }
+    }
+    void want;
+  }
+
   // ---- じょうけん（フラグ）を みたして いるか ----
   //   シナリオに if:"◯◯" / ifNot:"◯◯" と 書くだけで 出しわけできる
   function condOk(o) {
@@ -330,7 +561,10 @@
   }
   // ---- フラグを 立てる（set:"◯◯" と 書く）----
   function applySet(o) {
-    if (o && o.set) G.flags[o.set] = true;
+    if (o && o.set) {
+      G.flags[o.set] = true;
+      madeProgress(); // 話が すすんだ ので ヒントの タイマーを もどす
+    }
   }
 
   // ---- しょきか ----
@@ -422,6 +656,13 @@
       .map((c) => ({ ...c, opened: !!G.opened[c.id] }));
     G.npcs = (scenario.npcs || []).map((n) => ({ ...n, _inside: false }));
     G.actors = [];
+    // ★仲間1 ピカ：加入フラグが 立って いる ときだけ 出す
+    G.fairy =
+      scenario.fairy && (!scenario.fairy.if || G.flags[scenario.fairy.if])
+        ? makeFairy(scenario.fairy, G.player.x, G.player.y)
+        : null;
+    const hintBtn = document.getElementById("btn-hint");
+    if (hintBtn) hintBtn.classList.toggle("hidden", !G.fairy);
     G.triggers = (scenario.triggers || []).map((t) => ({ ...t, _done: false, _inside: false }));
     G.checkpoints = (scenario.checkpoints || []).map((c) => ({ ...c, _done: false }));
 
@@ -741,6 +982,56 @@
     G.downT = 1.6; // これが 0 に なると 再かいし
     addFloater(G.player.x, G.player.y - 46, "たおれた…", "#ff8f8f");
     Sfx.play("down");
+    // ★だれに やられたか かぞえる（Ph5 くじけない ための しくみ）
+    const id = G.lastFoe;
+    if (id) {
+      G.deaths[id] = (G.deaths[id] || 0) + 1;
+      easeIfStruggling(id);
+    }
+  }
+
+  // =========================================================
+  //  くじけない ための しくみ（Ph5）
+  // =========================================================
+  //  ★かんじんな ところ：
+  //    やさしく する ほうは「じどう・だまって・味方が つよくなった ように」見せる。
+  //    「てきが よわく なった」とは ぜったいに 言わない（要件D3・D4）。
+  function easeIfStruggling(foeId) {
+    const n = G.deaths[foeId] || 0;
+    if (n < 2) return;
+    const e = G.enemies.filter((x) => x.id === foeId)[0];
+    if (e) {
+      // てきを こっそり よわく する（画面には 出さない）
+      e.maxHp = Math.max(4, Math.round(e.maxHp * 0.8));
+      e.hp = e.maxHp;
+      e.attack = Math.max(1, e.attack - 1);
+      if (e.windupSec) e.windupSec = Math.min(2.4, e.windupSec + 0.2); // よける ゆうよを ふやす
+    }
+    if (n === 2) {
+      // 2回目は 薬（ハートが 1つ ふえる）だけ。ことばは 出さない
+      return;
+    }
+    // 3回目いこう：味方が つよく なった ように 見せる
+    G.player.attack += 2;
+    const msg = G.partner
+      ? "ミィが 本気を だした！🔥"
+      : G.fairy
+      ? "ピカが おうえん して くれた！✨"
+      : "リイコの けんが 光った！⚔️";
+    setTimeout(() => {
+      addFloater(G.player.x, G.player.y - 60, msg, "#ffe36b");
+      Sfx.play("nice");
+    }, 0);
+  }
+
+  // おたすけモード（手で えらぶ）… ヒントが 早く 出て、ハートが ふえる
+  function setHelpMode(on) {
+    G.helpMode = !!on;
+    if (G.helpMode && G.player) {
+      G.player.maxHp = Math.max(G.player.maxHp, 5);
+      G.player.hp = G.player.maxHp;
+    }
+    saveGame();
   }
 
   function respawnPlayer() {
@@ -794,9 +1085,12 @@
     updatePlayer(dt);
     checkTriggers(); // ぶつかって発生するイベント
     updatePartner(dt);
+    checkFairyJoin();
+    if (G.fairy) updateFairy(dt);
     updateEnemies(dt);
     updateBullets(dt);
     updateFloaters(dt);
+    updateStuck(dt);
     updateCamera();
   }
 
@@ -867,6 +1161,7 @@
           opened: G.opened,
           defeated: G.defeated,
           respawn: G.respawn,
+          helpMode: G.helpMode,
         })
       );
     } catch (e) {}
@@ -903,6 +1198,7 @@
     }
     G.titleText = sc.title || "";
     G.titleT = 2.6; // 面の なまえを しばらく 出す
+    madeProgress();
     saveGame();
     // ★面に 入った ときの 見せ場（1回だけ）
     if (sc.intro && !(sc.intro.once && G.flags[sc.intro.once])) {
@@ -941,6 +1237,7 @@
       if (!c.opened && dist(p.x, p.y, c.x, c.y) < PLAYER_R + 26) {
         c.opened = true;
         G.opened[c.id] = true;
+        madeProgress();
         applySet(c);
         if (c.key) G.items[c.key] = (G.items[c.key] || 0) + 1;
         addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
@@ -1020,6 +1317,7 @@
       if (c._done) continue;
       if (dist(p.x, p.y, c.x, c.y) < (c.r || 50)) {
         c._done = true;
+        madeProgress();
         G.respawn = { x: c.x, y: c.y };
         addFloater(c.x, c.y - 40, "ここから やりなおせるよ", "#9fd");
         saveGame();
@@ -1171,6 +1469,7 @@
       if (dist(e.x, e.y, p.x, p.y) < PLAYER_R + ENEMY_R && e.touchCd <= 0) {
         e.touchCd = 1.0;
         e.attackedT = 0; // ★この あと 0.45びょうが ジャスト反げきの チャンス
+        G.lastFoe = e.id; // やられた とき「だれに」を おぼえる
         damagePlayer(e.attack);
       }
 
@@ -1311,6 +1610,7 @@
   function defeatEnemy(e) {
     e.alive = false;
     if (e.remember) G.defeated[e.id] = true; // remember:true の てきは 生きかえらない
+    madeProgress();
     applySet(e);
     addFloater(e.x, e.y - 30, "たおした！✨", "#ffe36b");
     Sfx.play("defeat");
@@ -1548,6 +1848,9 @@
     }
     ctx.globalAlpha = 1;
 
+    drawFairy(ox, oy); // 仲間1 ピカ
+    drawGuide(ox, oy); // ヒント3の 光る しるし
+
     for (const f of G.floaters) {
       ctx.globalAlpha = clamp(f.life / 0.9, 0, 1);
       ctx.fillStyle = f.color;
@@ -1605,6 +1908,45 @@
     ctx.fillText("たおれた…", viewW / 2, viewH / 2 - 16);
     ctx.font = "20px system-ui, sans-serif";
     ctx.fillText("すぐ もどるよ！", viewW / 2, viewH / 2 + 26);
+  }
+
+  // ヒント3：行き先を 光らせる。画面の そとなら へりに やじるしを 出す
+  function drawGuide(ox, oy) {
+    if (!G.guide) return;
+    const gx = G.guide.x + ox,
+      gy = G.guide.y + oy;
+    const puls = 1 + Math.sin(G.guideT * 5) * 0.18;
+    if (gx > 20 && gx < viewW - 20 && gy > 20 && gy < viewH - 20) {
+      // 画面の 中に ある → 光る わ
+      ctx.strokeStyle = "rgba(255,235,120,0.9)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 34 * puls, 0, Math.PI * 2);
+      ctx.stroke();
+      drawSprite("✨", gx, gy - 44, 26);
+    } else {
+      // 画面の そと → へりに やじるし
+      const cx = viewW / 2,
+        cy = viewH / 2;
+      const dx = gx - cx,
+        dy = gy - cy;
+      const d = Math.hypot(dx, dy) || 1;
+      const m = Math.min((viewW / 2 - 46) / Math.abs(dx || 1), (viewH / 2 - 46) / Math.abs(dy || 1));
+      const ax = cx + dx * m,
+        ay = cy + dy * m;
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.fillStyle = "rgba(255,235,120,0.95)";
+      ctx.beginPath();
+      ctx.moveTo(18 * puls, 0);
+      ctx.lineTo(-12, -11);
+      ctx.lineTo(-12, 11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      void d;
+    }
   }
 
   // 右上：やみの しろ まで あと 何めん か（原則A：目あてが いつも 見えている）
@@ -1831,6 +2173,36 @@
       G.keys[e.key] = false;
     });
 
+    // ヒントボタン（ピカが 仲間に なったら 出る）
+    const hb = document.getElementById("btn-hint");
+    if (hb) {
+      hb.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        // 押したら いまの こまり具合より 1つ こい ヒントを 出す
+        const lv = Math.min(3, Math.max(1, G.hintLv + 1));
+        if (showHint(lv)) G.hintLv = lv;
+      });
+    }
+
+    // おたすけボタン（こまった とき。ヒントが 早く 出て ハートが ふえる）
+    const help = document.getElementById("btn-help");
+    if (help) {
+      help.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setHelpMode(!G.helpMode);
+        help.classList.toggle("on", G.helpMode);
+        addFloater(
+          G.player.x,
+          G.player.y - 60,
+          G.helpMode ? "おたすけモード オン！" : "おたすけモード オフ",
+          "#9fd"
+        );
+        Sfx.play("talk");
+      });
+    }
+
     // 剣ボタン（画面）
     const sb = document.getElementById("btn-sword");
     if (sb) {
@@ -1876,6 +2248,7 @@
           G.items = save.items || {};
           G.opened = save.opened || {};
           G.defeated = save.defeated || {};
+          G.helpMode = !!save.helpMode;
           goToStage(save.stageId, { respawn: save.respawn });
         } else {
           clearSave();
@@ -1902,6 +2275,8 @@
     // つづきが あるか（スタート画面で つかう）
     hasSave: () => !!loadSave(),
     eraseSave: () => clearSave(),
+    setHelpMode: (v) => setHelpMode(v),
+    isHelpMode: () => G.helpMode,
     // テスト用：手動で1フレーム進める／状態をのぞく（ふだんは使いません）
     _test: {
       state: G,
@@ -1931,6 +2306,11 @@
       erase: () => clearSave(),
       goStage: (id) => goToStage(id),
       cutscene: (cs) => startCutscene(cs),
+      hint: (lv) => showHint(lv || 1),
+      helpMode: (v) => setHelpMode(v),
+      fairySay: (t) => speakFairy(t, 3),
+      killedBy: (id) => { G.lastFoe = id; },
+      stuck: (sec) => { G.stuckT = sec; },
     },
   };
 })();

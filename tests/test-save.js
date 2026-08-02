@@ -16,7 +16,7 @@ function mkEl(id) {
   const L = {};
   return {
     id, style: {}, textContent: "", width: 0, height: 0,
-    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } },
+    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); }, toggle(c, on) { const v = on === undefined ? !this._s.has(c) : !!on; if (v) this._s.add(c); else this._s.delete(c); return v; } },
     addEventListener: (t, fn) => ((L[t] = L[t] || []).push(fn)),
     dispatch: (t, ev) => (L[t] || []).forEach((f) => f(ev)),
     getContext: () => ctxStub,
@@ -190,6 +190,78 @@ ok("2面へ すすむ", st.stageId === "stage2", st.stageId);
 ok("2面の なまえが 出る", st.titleText.indexOf("ささやき") >= 0, st.titleText);
 ok("2面でも 仲間は いない", st.partner === null);
 ok("2面に すすんだ ことが セーブされる", JSON.parse(store["riiko_save_v1"]).stageId === "stage2");
+
+// ===== 7.5) ヒント（Ph3.5）=====
+G.eraseSave();
+G.start();
+st = G._test.state;
+finishCutscene();
+// まだ タロに 会って いない → 1つめの ヒント
+st.stuckT = 0; st.hintLv = 0;
+st.floaters.length = 0;
+G._test.stuck(91);
+G._test.step(1 / 60);
+ok("90びょうで ヒント1が 出る", st.hintLv === 1 && st.floaters.length > 0,
+  st.floaters.length ? st.floaters[st.floaters.length - 1].text : "なし");
+const h1 = st.floaters[st.floaters.length - 1].text;
+G._test.stuck(181);
+G._test.step(1 / 60);
+ok("180びょうで ヒント2（もっと くわしく）", st.hintLv === 2);
+const h2 = st.floaters[st.floaters.length - 1].text;
+ok("ヒント1と2は ちがう ことば", h1 !== h2, h1 + " → " + h2);
+G._test.stuck(301);
+G._test.step(1 / 60);
+ok("300びょうで ヒント3＋行き先が 光る", st.hintLv === 3 && !!st.guide,
+  JSON.stringify(st.guide));
+
+// すすむと ヒントの タイマーが もどる
+st.player.x = 700; st.player.y = 1860; run(6); // タロに 会う
+ok("話が すすむと ヒントが もとに もどる", st.hintLv === 0 && st.guide === null);
+ok("タロに 会った フラグ", st.flags["metTaro"] === true);
+
+// ★もう一度 話しかける ほど くわしく なる（D2b）
+const taro = st.npcs.filter((n) => n.id === "n2")[0];
+const say = () => {
+  st.player.x = taro.x + 200; st.player.y = taro.y; G._test.step(1 / 60);
+  st.player.x = taro.x; st.player.y = taro.y; G._test.step(1 / 60);
+  const t = els["dialogue-text"].textContent;
+  closeDialogue();
+  return t;
+};
+const t2 = say();
+const t3 = say();
+ok("2回目の タロは 言うことが かわる", t2 !== t3, t2.slice(0, 12) + " / " + t3.slice(0, 12));
+ok("3回目は もっと はっきり 言う", t3.indexOf("はっきり") >= 0 || t3.indexOf("まん中") >= 0, t3);
+
+// ===== 7.6) くじけない しくみ（Ph5）=====
+const foe = st.enemies.filter((e) => e.id === "e3")[0];
+const hp0 = foe.maxHp, atk0 = foe.attack, patk0 = st.player.attack;
+G._test.killedBy("e3");
+st.player.invT = 0; G._test.hurt(9);
+for (let i = 0; i < 200 && st.downT > 0; i++) G._test.step(1 / 60);
+ok("1回目は まだ かわらない", foe.maxHp === hp0 && st.player.attack === patk0);
+G._test.killedBy("e3");
+st.player.invT = 0; G._test.hurt(9);
+for (let i = 0; i < 200 && st.downT > 0; i++) G._test.step(1 / 60);
+ok("2回 やられると てきが こっそり よわくなる",
+  foe.maxHp < hp0 && foe.attack < atk0, hp0 + "→" + foe.maxHp + " / こうげき " + atk0 + "→" + foe.attack);
+ok("2回目は ことばを 出さない（だまって やさしく）", st.player.attack === patk0);
+G._test.killedBy("e3");
+st.player.invT = 0; G._test.hurt(9);
+for (let i = 0; i < 200 && st.downT > 0; i++) G._test.step(1 / 60);
+ok("3回目は 味方が つよく なった ように 見せる", st.player.attack > patk0,
+  "こうげき " + patk0 + "→" + st.player.attack);
+const msgs = st.floaters.map((f) => f.text).join(" ");
+ok("「てきが よわく なった」とは 言わない", msgs.indexOf("よわ") < 0, msgs);
+
+// おたすけモード
+G._test.helpMode(true);
+ok("おたすけモードで ハートが ふえる", st.player.maxHp >= 5, "ハート " + st.player.maxHp);
+st.stuckT = 0; st.hintLv = 0;
+G._test.stuck(46);
+G._test.step(1 / 60);
+ok("おたすけモードは ヒントが 早く 出る", st.hintLv >= 1);
+G._test.helpMode(false);
 
 // ===== 8) さいしょから =====
 G.eraseSave();

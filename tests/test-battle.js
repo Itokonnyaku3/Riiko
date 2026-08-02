@@ -16,7 +16,7 @@ function mkEl(id) {
   const L = {};
   return {
     id, style: {}, textContent: "", width: 0, height: 0,
-    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } },
+    classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); }, toggle(c, on) { const v = on === undefined ? !this._s.has(c) : !!on; if (v) this._s.add(c); else this._s.delete(c); return v; } },
     addEventListener: (t, fn) => ((L[t] = L[t] || []).push(fn)),
     dispatch: (t, ev) => (L[t] || []).forEach((f) => f(ev)),
     getContext: () => ctxStub,

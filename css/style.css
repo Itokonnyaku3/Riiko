@@ -273,3 +273,33 @@ canvas#game {
 .gate-sub-btn.hidden {
   display: none;
 }
+
+/* ヒントボタン（ピカが 仲間に なったら 出る） */
+.abtn.small {
+  width: 58px;
+  height: 58px;
+  font-size: 26px;
+  align-self: flex-end;
+}
+.abtn.hidden {
+  display: none;
+}
+
+/* こまった ときの ボタン（おたすけモード） */
+#cornerbtn,
+.cornerbtn {
+  position: absolute;
+  right: 14px;
+  top: 54px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  font-size: 20px;
+  z-index: 26;
+  touch-action: none;
+}
+.cornerbtn.on {
+  background: rgba(120, 200, 120, 0.9);
+}
