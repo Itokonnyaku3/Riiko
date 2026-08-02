@@ -17,6 +17,7 @@
   const CAT_R = 14;
   const ENEMY_R = 18;
   const TAP_R = 40; // 敵をタップしたと判定する ゆるさ
+  const NPC_TALK_R = 30; // じゅうにんに 話しかける きょり（ちかづかないと 話さない）
 
   // ---- あるく絵（アニメ）の せってい ----
   const WALK_DIRS = ["down", "up", "left", "right"];
@@ -191,7 +192,8 @@
     G.hitstop = 0;
     G.shake = 0;
 
-    G.partner = {
+    // ★仲間は いない ことも ある（3面で ミィが 加わる まで は null）
+    G.partner = !scenario.partner ? null : {
       x: scenario.player.x - 44,
       y: scenario.player.y + 26,
       sprite: scenario.partner.sprite,
@@ -437,6 +439,7 @@
   }
 
   function commandCat(enemy) {
+    if (!G.partner) return; // まだ 仲間が いない
     if (G.partner.state === "rest") return; // つかれ中は うごけない
     G.partner.target = enemy;
     G.partner.state = "attack";
@@ -444,6 +447,7 @@
   }
 
   function commandCatMove(wx, wy) {
+    if (!G.partner) return; // まだ 仲間が いない
     if (G.partner.state === "rest") return;
     G.partner.target = null;
     G.partner.state = "goto";
@@ -704,8 +708,9 @@
     }
 
     // とうじょうじんぶつ（ヒントをくれる）
+    //   ★ちかづきすぎ ないと 話しかけない。NPCごとに r で かえられる
     for (const n of G.npcs) {
-      const near = dist(p.x, p.y, n.x, n.y) < PLAYER_R + 30;
+      const near = dist(p.x, p.y, n.x, n.y) < (n.r || NPC_TALK_R);
       if (near && !n._inside) {
         n._inside = true;
         Sfx.play("talk");
@@ -726,9 +731,10 @@
     }
   }
 
-  // ---- あいぼう（ねこ） ----
+  // ---- あいぼう（ねこ）※いない ときは 何も しない ----
   function updatePartner(dt) {
     const pt = G.partner;
+    if (!pt) return;
     pt.bob += dt * 6;
     pt.wanderT += dt;
 
@@ -859,6 +865,7 @@
       }
 
       const engaged =
+        !!pt &&
         pt.state === "attack" &&
         pt.target === e &&
         dist(pt.x, pt.y, e.x, e.y) <= 52;
@@ -1016,7 +1023,7 @@
       b.life -= dt;
 
       // あいぼうに当たる（主人公には当たらない＝やさしい設計）
-      if (pt.state !== "rest" && dist(b.x, b.y, pt.x, pt.y) < CAT_R + 8) {
+      if (pt && pt.state !== "rest" && dist(b.x, b.y, pt.x, pt.y) < CAT_R + 8) {
         pt.hp -= b.dmg;
         addFloater(pt.x, pt.y - 38, "-" + b.dmg, "#ff8f8f");
         b.life = 0;
@@ -1168,12 +1175,14 @@
       ctx.stroke();
     }
 
-    // あいぼう
+    // あいぼう（いない ときは えがかない）
     const pt = G.partner;
-    const ptBob = Math.sin(pt.bob) * 2;
-    drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
-    drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
-    if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
+    if (pt) {
+      const ptBob = Math.sin(pt.bob) * 2;
+      drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
+      drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
+      if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
+    }
 
     // ---- しゅじんこう（剣を ふる 見た目つき）----
     const pl = G.player;
@@ -1320,6 +1329,7 @@
     ctx.beginPath();
     ctx.ellipse(x, footY - 2, s * 0.22, s * 0.08, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = "#000"; // かげの うすい色を もどす（このあとの 絵文字が うすくならないように）
 
     ctx.drawImage(img, x - s / 2, y - s / 2 + (bob || 0), s, s);
     return true;
@@ -1417,8 +1427,16 @@
       if (ev.buttons) handlePointer(ev.clientX, ev.clientY, false);
     });
     window.addEventListener("keydown", (e) => {
+      const isAction = e.key === "j" || e.key === "J" || e.key === " ";
+      // ★かいわ中は スペース／エンター／J で「つぎへ」
+      if (G.paused && (isAction || e.key === "Enter")) {
+        e.preventDefault();
+        if (!G.keys["_sword"]) Dialogue.advance();
+        G.keys["_sword"] = true;
+        return;
+      }
       // 剣：J か スペース
-      if (e.key === "j" || e.key === "J" || e.key === " ") {
+      if (isAction) {
         e.preventDefault();
         if (!G.keys["_sword"]) swingSword(); // おしっぱなしでは 連打しない
         G.keys["_sword"] = true;
@@ -1427,7 +1445,7 @@
       G.keys[e.key] = true;
     });
     window.addEventListener("keyup", (e) => {
-      if (e.key === "j" || e.key === "J" || e.key === " ") {
+      if (e.key === "j" || e.key === "J" || e.key === " " || e.key === "Enter") {
         G.keys["_sword"] = false;
         return;
       }

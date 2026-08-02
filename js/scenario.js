@@ -64,10 +64,11 @@ const SCENARIO = {
     attack: 5,
   },
 
-  // ★ミィ（ねこ）は 本当は 3面で 仲間になる よてい。
-  //   いまは 主人公が まだ 剣を もっていない ので、
-  //   たたかう 手だんとして のこしてあります（けいかく Ph1／Ph1.5 で 外します）。
-  partner: { sprite: "🐱", name: "ミィ", maxHp: 30, attack: 4 },
+  // ★仲間（ねこミィ）は 3面で 加わる よてい。
+  //   1面は リイコ ひとり なので partner は なし（null）。
+  //   3面を 作る ときに、下の 行を もどせば また 出てきます：
+  //     partner: { sprite: "🐱", name: "ミィ", maxHp: 30, attack: 4 },
+  partner: null,
 
   // てき… behavior: patrol / chase / shooter / dummy(かかし)
   enemies: [
@@ -138,6 +139,7 @@ const SCENARIO = {
         "北の 森の ほうへ 走っていったよ。",
         "そこの かかしで 剣の れんしゅうを して おいき。",
         "うごく：ボタン／WASD　・　🗡️ボタン／Jキー：けんを ふる",
+        "はなしを すすめる：がめんを タップ／スペースキー",
       ],
     },
     {

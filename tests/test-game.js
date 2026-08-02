@@ -73,7 +73,13 @@ rects.length = 0;
 G._test.step(0.016);
 ok("がめんに 木が えがかれる", drawn.filter((d) => d.t === "🌳").length > 0, drawn.filter((d) => d.t === "🌳").length + "本");
 ok("しゅじんこうが えがかれる", drawn.some((d) => d.t === "👧"));
-ok("あいぼうねこが えがかれる", drawn.some((d) => d.t === "🐱"));
+// ★1面は リイコ ひとり（ミィは 3面で 加わる）
+ok("1面に 仲間は いない", st.partner === null);
+ok("あいぼうねこは えがかれない", !drawn.some((d) => d.t === "🐱"));
+ok("仲間が いなくても タップで エラーに ならない", (function () {
+  try { G._test.catTo(700, 2200); G._test.tapEnemy(870, 2250); G._test.step(1 / 60); return true; }
+  catch (e) { return false; }
+})());
 
 // 木・たからばこ・キャラが うすくならない（かげの 色が のこらない）
 const usui = drawn.filter(
@@ -90,10 +96,16 @@ function closeDialogue() {
 // スタート直後は しずか（いきなり かいわ まどが 出ない）
 ok("スタート直後は かいわ まどが 出ない", st.paused === false);
 // おばあさんの ところまで あるくと 話しかけてくる
-st.player.x = 505;
-st.player.y = 2125;
+// すこし はなれて いる あいだは 話しかけて こない（当たり判定を せまく した）
+st.player.x = 545;
+st.player.y = 2120;
 G._test.step(0.016);
-ok("住人に 近づくと 話しかけてくる", st.paused === true);
+ok("すこし はなれて いれば 話しかけて こない", st.paused === false, "きょり 45");
+// ちかづくと 話しかけてくる
+st.player.x = 512;
+st.player.y = 2122;
+G._test.step(0.016);
+ok("ちかづくと 話しかけてくる", st.paused === true, "きょり 12");
 closeDialogue();
 ok("かいわを とじられる", st.paused === false);
 
