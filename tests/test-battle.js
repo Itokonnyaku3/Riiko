@@ -31,11 +31,18 @@ global.performance = { now: () => 0 };
 global.setTimeout = (fn) => { fn(); return 0; };
 global.window = { addEventListener: () => {}, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 800 };
 global.Image = function () { this.complete = false; this.naturalWidth = 0; };
+global.localStorage = (function () { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => (m[k] = String(v)),
+  removeItem: (k) => delete m[k] }; })();
 
 eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 global.MapData = global.window.MapData;
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));
-eval(fs.readFileSync(path.join(ROOT, "js/scenario.js"), "utf8") + "\n;global.SCENARIO = SCENARIO;");
+eval(fs.readFileSync(path.join(ROOT, "js/maps/stage2.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/scenario.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/stages/stage1.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/stages/stage2.js"), "utf8"));
+global.SCENARIO = global.window.STAGES.stage1;
 eval(fs.readFileSync(path.join(ROOT, "js/engine.js"), "utf8"));
 
 const T = [];
@@ -152,6 +159,37 @@ ok("走る(dash) が ある", seen.indexOf("dash") >= 0);
 ok("目を まわす(dizzy) が ある", seen.indexOf("dizzy") >= 0);
 ok("ためる のあと 走る", seen.indexOf("dash") > seen.indexOf("windup"));
 ok("走った あと 目を まわす", seen.indexOf("dizzy") > seen.indexOf("dash"));
+
+// ★ためて いる あいだに よこへ 動けば よけられるか
+//   （さいごまで ねらいを 追いかける と、どこへ にげても 当たって しまう）
+function dodgeTest(moveDuringWindup) {
+  ch.alive = true; ch.hp = ch.maxHp; ch.knockT = 0;
+  ch.x = 700; ch.y = 800; ch.home.x = 700; ch.home.y = 800;
+  ch.chargeState = "wait"; ch.chargeT = 0;
+  st.player.x = 700; st.player.y = 980;
+  st.player.hp = st.player.maxHp; st.downT = 0;
+  let touched = false;
+  let dashed = false;
+  for (let i = 0; i < 260; i++) {
+    // ためて いる あいだ だけ よこへ 動く
+    if (moveDuringWindup && ch.chargeState === "windup") H.press("ArrowRight", true);
+    else H.press("ArrowRight", false);
+    H.step(1 / 60);
+    closeDialogue();
+    if (ch.chargeState === "dash") {
+      dashed = true;
+      const d = Math.hypot(ch.x - st.player.x, ch.y - st.player.y);
+      if (d < 18 + 18) touched = true;
+    }
+  }
+  H.press("ArrowRight", false);
+  return { touched, dashed };
+}
+const dodged = dodgeTest(true);
+const stood = dodgeTest(false);
+ok("突進は ちゃんと はっしゃ される", dodged.dashed && stood.dashed);
+ok("ためる あいだに 動けば よけられる", dodged.touched === false, dodged.touched ? "当たった" : "よけられた");
+ok("じっと して いると 当たる（＝ちゃんと ねらって いる）", stood.touched === true, stood.touched ? "当たった" : "当たらない");
 
 // 目を まわして いる あいだは 2ばい
 ch.chargeState = "dizzy"; ch.chargeT = 5;

@@ -13,6 +13,7 @@
     <div class="gate-sub">あいことばを入れてね</div>
     <input id="gate-input" type="password" inputmode="text" autocomplete="off" placeholder="あいことば" />
     <button id="gate-btn">スタート</button>
+    <button id="gate-new" class="gate-sub-btn hidden">さいしょから やりなおす</button>
     <div id="gate-error" class="gate-error"></div>
   </div>
 </div>
@@ -47,9 +48,14 @@
   </div>
 </div>
 
-<script src="js/mapdata.js?v=11"></script>
-<!-- できあがっている マップ（ふえたら ここに ふやす） -->
-<script src="js/maps/stage1.js?v=11"></script>
-<script src="js/scenario.js?v=11"></script>
-<script src="js/engine.js?v=11"></script>
-<script src="js/main.js?v=11"></script>
+<script src="js/mapdata.js?v=13"></script>
+<!-- 地形（マップ作成ツールの 出力。ふえたら ここに ふやす） -->
+<script src="js/maps/stage1.js?v=13"></script>
+<script src="js/maps/stage2.js?v=13"></script>
+<!-- ぜんたいの せってい（あいことば・キャラの絵・面の じゅんばん） -->
+<script src="js/scenario.js?v=13"></script>
+<!-- 面ごとの おはなし -->
+<script src="js/stages/stage1.js?v=13"></script>
+<script src="js/stages/stage2.js?v=13"></script>
+<script src="js/engine.js?v=13"></script>
+<script src="js/main.js?v=13"></script>

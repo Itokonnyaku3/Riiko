@@ -40,14 +40,19 @@ global.setTimeout = (fn) => { fn(); return 0; };
 global.window = { addEventListener: () => {}, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 800 };
 // Node には 画像が ないので、から の 画像を かえす（＝絵文字で えがかれる）
 global.Image = function () { this.complete = false; this.naturalWidth = 0; };
+global.localStorage = (function () { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => (m[k] = String(v)),
+  removeItem: (k) => delete m[k] }; })();
 global.AudioContext = undefined; // 音も Node では 出さない
 
 eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 global.MapData = global.window.MapData;
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));
-const scenarioSrc = fs.readFileSync(path.join(ROOT, "js/scenario.js"), "utf8");
-// eval の 中の const は 外から 見えないので、global に うつす
-eval(scenarioSrc + "\n;global.SCENARIO = SCENARIO; global.GAME_CONFIG = GAME_CONFIG;");
+eval(fs.readFileSync(path.join(ROOT, "js/maps/stage2.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/scenario.js"), "utf8") + ";global.GAME_CONFIG = GAME_CONFIG;");
+eval(fs.readFileSync(path.join(ROOT, "js/stages/stage1.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/stages/stage2.js"), "utf8"));
+global.SCENARIO = global.window.STAGES.stage1;
 eval(fs.readFileSync(path.join(ROOT, "js/engine.js"), "utf8"));
 
 const T = [];
@@ -82,8 +87,12 @@ ok("仲間が いなくても タップで エラーに ならない", (function
 })());
 
 // 木・たからばこ・キャラが うすくならない（かげの 色が のこらない）
+//   ⛩️（ボスまえは うすい）と 面の なまえ（ふわっと 出る）は のぞく
+const fadeOk = ["⛩️", SCENARIO.title];
 const usui = drawn.filter(
-  (d) => d.t !== "⛩️" && ((d.alpha !== undefined && d.alpha < 1) || /rgba\([^)]*0\.\d+\)/.test(String(d.style)))
+  (d) =>
+    fadeOk.indexOf(d.t) < 0 &&
+    ((d.alpha !== undefined && d.alpha < 1) || /rgba\([^)]*0\.\d+\)/.test(String(d.style)))
 );
 ok("絵が 半とうめいに ならない", usui.length === 0,
   usui.length ? usui[0].t + " が " + usui[0].style + " / alpha " + usui[0].alpha : "ぜんぶ くっきり");

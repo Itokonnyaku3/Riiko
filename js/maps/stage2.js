@@ -1,4 +1,109 @@
-/* このファイルは マップ作成ツール（tools/map-editor.html）で 作りました */
-/* あたらしい マップ */
+/* このファイルは マップ作成ツール（tools/map-editor.html）で 読み書きできます */
+/* 2面「ささやきの谷」― まだ かりの かたち。Ph6 で 作りこみます */
 window.MAPS = window.MAPS || {};
-window.MAPS["stage2"] = /*MAPDATA*/{"name":"stage2","title":"あたらしい マップ","world":{"width":1400,"height":2200,"ground":"#5d8a4e"},"areas":[{"shape":"rect","x":417,"y":1843,"w":125,"h":238,"kind":"grass"},{"shape":"rect","x":560,"y":1635,"w":17,"h":195,"kind":"grass"},{"shape":"rect","x":474,"y":1697,"w":102,"h":214,"kind":"grass"},{"shape":"rect","x":565,"y":1596,"w":185,"h":129,"kind":"grass"},{"shape":"rect","x":721,"y":1669,"w":432,"h":283,"kind":"grass"},{"shape":"circle","x":729,"y":1731,"r":70,"kind":"grass"},{"shape":"circle","x":776,"y":1704,"r":70,"kind":"grass"},{"shape":"circle","x":806,"y":1697,"r":70,"kind":"grass"},{"shape":"circle","x":769,"y":1697,"r":70,"kind":"grass"},{"shape":"circle","x":716,"y":1697,"r":70,"kind":"grass"},{"shape":"circle","x":599,"y":1657,"r":35,"kind":"grass"},{"shape":"circle","x":586,"y":1677,"r":35,"kind":"grass"},{"shape":"circle","x":565,"y":1695,"r":35,"kind":"grass"},{"shape":"circle","x":526,"y":1700,"r":35,"kind":"grass"},{"shape":"circle","x":505,"y":1700,"r":35,"kind":"grass"},{"shape":"circle","x":486,"y":1700,"r":35,"kind":"grass"},{"shape":"circle","x":460,"y":1700,"r":35,"kind":"grass"},{"shape":"circle","x":443,"y":1697,"r":35,"kind":"grass"},{"shape":"circle","x":426,"y":1678,"r":35,"kind":"grass"},{"shape":"circle","x":412,"y":1661,"r":35,"kind":"grass"},{"shape":"circle","x":400,"y":1649,"r":35,"kind":"grass"},{"shape":"circle","x":383,"y":1635,"r":35,"kind":"grass"},{"shape":"circle","x":356,"y":1609,"r":35,"kind":"grass"},{"shape":"circle","x":325,"y":1592,"r":35,"kind":"grass"},{"shape":"circle","x":299,"y":1565,"r":35,"kind":"grass"},{"shape":"circle","x":282,"y":1544,"r":35,"kind":"grass"},{"shape":"circle","x":281,"y":1501,"r":35,"kind":"grass"},{"shape":"circle","x":298,"y":1467,"r":35,"kind":"grass"},{"shape":"circle","x":307,"y":1453,"r":35,"kind":"grass"},{"shape":"circle","x":319,"y":1440,"r":35,"kind":"grass"},{"shape":"circle","x":329,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":364,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":407,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":446,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":477,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":515,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":551,"y":1419,"r":35,"kind":"grass"},{"shape":"circle","x":573,"y":1409,"r":35,"kind":"grass"},{"shape":"circle","x":594,"y":1409,"r":35,"kind":"grass"},{"shape":"circle","x":628,"y":1405,"r":35,"kind":"grass"},{"shape":"circle","x":659,"y":1405,"r":35,"kind":"grass"},{"shape":"circle","x":685,"y":1405,"r":35,"kind":"grass"},{"shape":"circle","x":698,"y":1383,"r":35,"kind":"grass"},{"shape":"circle","x":712,"y":1362,"r":35,"kind":"grass"},{"shape":"circle","x":715,"y":1345,"r":35,"kind":"grass"},{"shape":"circle","x":724,"y":1323,"r":35,"kind":"grass"},{"shape":"circle","x":729,"y":1301,"r":35,"kind":"grass"},{"shape":"circle","x":729,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":729,"y":1266,"r":35,"kind":"grass"},{"shape":"circle","x":699,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":673,"y":1304,"r":35,"kind":"grass"},{"shape":"circle","x":651,"y":1326,"r":35,"kind":"grass"},{"shape":"circle","x":625,"y":1348,"r":35,"kind":"grass"},{"shape":"circle","x":596,"y":1360,"r":35,"kind":"grass"},{"shape":"circle","x":577,"y":1365,"r":35,"kind":"grass"},{"shape":"circle","x":560,"y":1374,"r":35,"kind":"grass"},{"shape":"circle","x":539,"y":1377,"r":35,"kind":"grass"},{"shape":"circle","x":522,"y":1386,"r":35,"kind":"grass"},{"shape":"circle","x":505,"y":1386,"r":35,"kind":"grass"},{"shape":"circle","x":469,"y":1391,"r":35,"kind":"grass"},{"shape":"circle","x":435,"y":1391,"r":35,"kind":"grass"},{"shape":"circle","x":417,"y":1391,"r":35,"kind":"grass"},{"shape":"circle","x":387,"y":1391,"r":35,"kind":"grass"},{"shape":"circle","x":424,"y":1408,"r":35,"kind":"grass"},{"shape":"circle","x":468,"y":1413,"r":35,"kind":"grass"},{"shape":"circle","x":525,"y":1417,"r":35,"kind":"grass"},{"shape":"circle","x":559,"y":1417,"r":35,"kind":"grass"},{"shape":"circle","x":580,"y":1417,"r":35,"kind":"grass"},{"shape":"circle","x":611,"y":1409,"r":35,"kind":"grass"},{"shape":"circle","x":633,"y":1405,"r":35,"kind":"grass"},{"shape":"circle","x":654,"y":1397,"r":35,"kind":"grass"},{"shape":"circle","x":676,"y":1388,"r":35,"kind":"grass"},{"shape":"circle","x":690,"y":1371,"r":35,"kind":"grass"},{"shape":"circle","x":698,"y":1352,"r":35,"kind":"grass"},{"shape":"circle","x":698,"y":1335,"r":35,"kind":"grass"},{"shape":"circle","x":665,"y":1335,"r":35,"kind":"grass"},{"shape":"circle","x":644,"y":1335,"r":35,"kind":"grass"},{"shape":"circle","x":630,"y":1314,"r":35,"kind":"grass"},{"shape":"circle","x":617,"y":1297,"r":35,"kind":"grass"},{"shape":"circle","x":633,"y":1292,"r":35,"kind":"grass"},{"shape":"circle","x":681,"y":1287,"r":35,"kind":"grass"},{"shape":"circle","x":712,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":729,"y":1275,"r":35,"kind":"grass"},{"shape":"circle","x":741,"y":1261,"r":35,"kind":"grass"},{"shape":"circle","x":750,"y":1244,"r":35,"kind":"grass"},{"shape":"circle","x":747,"y":1223,"r":35,"kind":"grass"},{"shape":"circle","x":742,"y":1206,"r":35,"kind":"grass"},{"shape":"circle","x":661,"y":1206,"r":35,"kind":"grass"},{"shape":"circle","x":625,"y":1206,"r":35,"kind":"grass"},{"shape":"circle","x":599,"y":1209,"r":35,"kind":"grass"},{"shape":"circle","x":582,"y":1209,"r":35,"kind":"grass"},{"shape":"circle","x":556,"y":1213,"r":35,"kind":"grass"},{"shape":"circle","x":512,"y":1216,"r":35,"kind":"grass"},{"shape":"circle","x":469,"y":1216,"r":35,"kind":"grass"},{"shape":"circle","x":452,"y":1216,"r":35,"kind":"grass"},{"shape":"circle","x":435,"y":1216,"r":35,"kind":"grass"},{"shape":"circle","x":400,"y":1201,"r":35,"kind":"grass"},{"shape":"circle","x":366,"y":1196,"r":35,"kind":"grass"},{"shape":"circle","x":335,"y":1184,"r":35,"kind":"grass"},{"shape":"circle","x":304,"y":1170,"r":35,"kind":"grass"},{"shape":"circle","x":287,"y":1153,"r":35,"kind":"grass"},{"shape":"circle","x":273,"y":1136,"r":35,"kind":"grass"},{"shape":"circle","x":265,"y":1122,"r":35,"kind":"grass"},{"shape":"circle","x":251,"y":1114,"r":35,"kind":"grass"},{"shape":"circle","x":239,"y":1101,"r":35,"kind":"grass"},{"shape":"circle","x":227,"y":1079,"r":35,"kind":"grass"},{"shape":"circle","x":217,"y":1062,"r":35,"kind":"grass"},{"shape":"circle","x":302,"y":1036,"r":35,"kind":"grass"},{"shape":"circle","x":364,"y":1019,"r":35,"kind":"grass"},{"shape":"circle","x":420,"y":1002,"r":35,"kind":"grass"},{"shape":"circle","x":455,"y":988,"r":35,"kind":"grass"},{"shape":"circle","x":472,"y":988,"r":35,"kind":"grass"},{"shape":"circle","x":515,"y":983,"r":35,"kind":"grass"},{"shape":"circle","x":563,"y":983,"r":35,"kind":"grass"},{"shape":"circle","x":620,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":659,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":707,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":724,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":746,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":781,"y":982,"r":35,"kind":"grass"},{"shape":"circle","x":810,"y":982,"r":35,"kind":"grass"},{"shape":"circle","x":832,"y":982,"r":35,"kind":"grass"},{"shape":"circle","x":854,"y":982,"r":35,"kind":"grass"},{"shape":"circle","x":875,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":894,"y":980,"r":35,"kind":"grass"},{"shape":"circle","x":915,"y":975,"r":35,"kind":"grass"},{"shape":"circle","x":954,"y":966,"r":35,"kind":"grass"},{"shape":"circle","x":971,"y":935,"r":35,"kind":"grass"},{"shape":"circle","x":980,"y":911,"r":35,"kind":"grass"},{"shape":"circle","x":993,"y":889,"r":35,"kind":"grass"},{"shape":"circle","x":1002,"y":866,"r":35,"kind":"grass"},{"shape":"circle","x":1007,"y":844,"r":35,"kind":"grass"},{"shape":"circle","x":1011,"y":823,"r":35,"kind":"grass"},{"shape":"circle","x":1014,"y":806,"r":35,"kind":"grass"},{"shape":"circle","x":1014,"y":789,"r":35,"kind":"grass"},{"shape":"circle","x":1019,"y":813,"r":35,"kind":"grass"},{"shape":"circle","x":287,"y":1104,"r":35,"kind":"grass"},{"shape":"circle","x":298,"y":1084,"r":35,"kind":"grass"},{"shape":"circle","x":319,"y":1062,"r":35,"kind":"grass"},{"shape":"circle","x":342,"y":1053,"r":35,"kind":"grass"},{"shape":"circle","x":372,"y":1040,"r":35,"kind":"grass"},{"shape":"circle","x":393,"y":1040,"r":35,"kind":"grass"},{"shape":"circle","x":407,"y":1028,"r":35,"kind":"grass"},{"shape":"circle","x":415,"y":1009,"r":35,"kind":"grass"},{"shape":"circle","x":373,"y":1000,"r":35,"kind":"grass"},{"shape":"circle","x":325,"y":1008,"r":35,"kind":"grass"},{"shape":"circle","x":308,"y":1008,"r":35,"kind":"grass"},{"shape":"circle","x":270,"y":1013,"r":35,"kind":"grass"},{"shape":"circle","x":234,"y":1013,"r":35,"kind":"grass"},{"shape":"circle","x":217,"y":1013,"r":35,"kind":"grass"},{"shape":"circle","x":213,"y":1030,"r":35,"kind":"grass"},{"shape":"circle","x":220,"y":1048,"r":35,"kind":"grass"},{"shape":"circle","x":233,"y":1065,"r":35,"kind":"grass"},{"shape":"circle","x":247,"y":1091,"r":35,"kind":"grass"},{"shape":"circle","x":281,"y":1093,"r":35,"kind":"grass"},{"shape":"circle","x":307,"y":1088,"r":35,"kind":"grass"},{"shape":"circle","x":324,"y":1099,"r":35,"kind":"grass"},{"shape":"circle","x":338,"y":1118,"r":35,"kind":"grass"},{"shape":"circle","x":346,"y":1139,"r":35,"kind":"grass"},{"shape":"circle","x":359,"y":1131,"r":35,"kind":"grass"},{"shape":"circle","x":367,"y":1105,"r":35,"kind":"grass"},{"shape":"circle","x":381,"y":1079,"r":35,"kind":"grass"},{"shape":"circle","x":393,"y":1050,"r":35,"kind":"grass"},{"shape":"circle","x":393,"y":1031,"r":35,"kind":"grass"},{"shape":"circle","x":361,"y":1026,"r":35,"kind":"grass"},{"shape":"circle","x":330,"y":1034,"r":35,"kind":"grass"},{"shape":"circle","x":308,"y":1043,"r":35,"kind":"grass"},{"shape":"circle","x":291,"y":1056,"r":35,"kind":"grass"},{"shape":"circle","x":298,"y":1082,"r":35,"kind":"grass"},{"shape":"circle","x":324,"y":1096,"r":35,"kind":"grass"},{"shape":"circle","x":346,"y":1104,"r":35,"kind":"grass"},{"shape":"circle","x":359,"y":1113,"r":35,"kind":"grass"},{"shape":"circle","x":630,"y":1210,"r":35,"kind":"grass"},{"shape":"circle","x":637,"y":1230,"r":35,"kind":"grass"},{"shape":"circle","x":650,"y":1247,"r":35,"kind":"grass"},{"shape":"circle","x":659,"y":1269,"r":35,"kind":"grass"},{"shape":"circle","x":667,"y":1286,"r":35,"kind":"grass"},{"shape":"circle","x":676,"y":1300,"r":35,"kind":"grass"},{"shape":"circle","x":668,"y":1275,"r":35,"kind":"grass"},{"shape":"circle","x":661,"y":1261,"r":35,"kind":"grass"},{"shape":"circle","x":651,"y":1240,"r":35,"kind":"grass"},{"shape":"circle","x":617,"y":1227,"r":35,"kind":"grass"},{"shape":"circle","x":599,"y":1223,"r":35,"kind":"grass"},{"shape":"circle","x":582,"y":1223,"r":35,"kind":"grass"},{"shape":"circle","x":590,"y":1243,"r":35,"kind":"grass"},{"shape":"circle","x":602,"y":1260,"r":35,"kind":"grass"},{"shape":"circle","x":611,"y":1274,"r":35,"kind":"grass"},{"shape":"circle","x":620,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":628,"y":1308,"r":35,"kind":"grass"},{"shape":"circle","x":645,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":667,"y":1258,"r":35,"kind":"grass"},{"shape":"circle","x":690,"y":1258,"r":35,"kind":"grass"},{"shape":"circle","x":698,"y":1244,"r":35,"kind":"grass"},{"shape":"circle","x":707,"y":1227,"r":35,"kind":"grass"},{"shape":"circle","x":707,"y":1210,"r":35,"kind":"grass"},{"shape":"circle","x":704,"y":1192,"r":35,"kind":"grass"},{"shape":"circle","x":741,"y":1274,"r":35,"kind":"grass"},{"shape":"circle","x":767,"y":1274,"r":35,"kind":"grass"},{"shape":"circle","x":803,"y":1278,"r":35,"kind":"grass"},{"shape":"circle","x":820,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":837,"y":1283,"r":35,"kind":"grass"},{"shape":"circle","x":854,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":872,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":898,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":915,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":942,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":968,"y":1295,"r":35,"kind":"grass"},{"shape":"circle","x":985,"y":1304,"r":35,"kind":"grass"},{"shape":"circle","x":1007,"y":1312,"r":35,"kind":"grass"},{"shape":"circle","x":1033,"y":1312,"r":35,"kind":"grass"},{"shape":"circle","x":1059,"y":1321,"r":35,"kind":"grass"},{"shape":"circle","x":1081,"y":1321,"r":35,"kind":"grass"},{"shape":"circle","x":1093,"y":1334,"r":35,"kind":"grass"},{"shape":"circle","x":1102,"y":1348,"r":35,"kind":"grass"},{"shape":"circle","x":1115,"y":1365,"r":35,"kind":"grass"},{"shape":"circle","x":1132,"y":1377,"r":35,"kind":"grass"},{"shape":"circle","x":1146,"y":1399,"r":35,"kind":"grass"},{"shape":"circle","x":1146,"y":1417,"r":35,"kind":"grass"},{"shape":"circle","x":1142,"y":1430,"r":35,"kind":"grass"},{"shape":"circle","x":1133,"y":1447,"r":35,"kind":"grass"},{"shape":"circle","x":1125,"y":1460,"r":35,"kind":"grass"},{"shape":"circle","x":1104,"y":1460,"r":35,"kind":"grass"},{"shape":"circle","x":1078,"y":1460,"r":35,"kind":"grass"},{"shape":"circle","x":1056,"y":1448,"r":35,"kind":"grass"},{"shape":"circle","x":1059,"y":1426,"r":35,"kind":"grass"},{"shape":"circle","x":1067,"y":1405,"r":35,"kind":"grass"},{"shape":"circle","x":1067,"y":1388,"r":35,"kind":"grass"},{"shape":"circle","x":1071,"y":1366,"r":35,"kind":"grass"},{"shape":"circle","x":1056,"y":1362,"r":35,"kind":"grass"},{"shape":"circle","x":1062,"y":1386,"r":35,"kind":"grass"},{"shape":"circle","x":1071,"y":1403,"r":35,"kind":"grass"},{"shape":"circle","x":1088,"y":1413,"r":35,"kind":"grass"},{"shape":"circle","x":1073,"y":1397,"r":35,"kind":"grass"},{"shape":"circle","x":1061,"y":1379,"r":35,"kind":"grass"},{"shape":"circle","x":1062,"y":1352,"r":35,"kind":"grass"},{"shape":"circle","x":1076,"y":1331,"r":35,"kind":"grass"},{"shape":"circle","x":1076,"y":1309,"r":35,"kind":"grass"},{"shape":"circle","x":1076,"y":1287,"r":35,"kind":"grass"},{"shape":"circle","x":1098,"y":1275,"r":35,"kind":"grass"},{"shape":"circle","x":1124,"y":1275,"r":35,"kind":"grass"},{"shape":"circle","x":1141,"y":1275,"r":35,"kind":"grass"},{"shape":"circle","x":1158,"y":1291,"r":35,"kind":"grass"},{"shape":"circle","x":1167,"y":1308,"r":35,"kind":"grass"},{"shape":"circle","x":1176,"y":1326,"r":35,"kind":"grass"},{"shape":"circle","x":1180,"y":1343,"r":35,"kind":"grass"},{"shape":"circle","x":1176,"y":1365,"r":35,"kind":"grass"},{"shape":"circle","x":1169,"y":1382,"r":35,"kind":"grass"},{"shape":"circle","x":1155,"y":1403,"r":35,"kind":"grass"},{"shape":"circle","x":1147,"y":1417,"r":35,"kind":"grass"},{"shape":"circle","x":1147,"y":1434,"r":35,"kind":"grass"},{"shape":"circle","x":1147,"y":1414,"r":35,"kind":"grass"},{"shape":"circle","x":1142,"y":1392,"r":35,"kind":"grass"},{"shape":"circle","x":1138,"y":1362,"r":35,"kind":"grass"},{"shape":"circle","x":1138,"y":1340,"r":35,"kind":"grass"},{"shape":"circle","x":1125,"y":1323,"r":35,"kind":"grass"},{"shape":"circle","x":1132,"y":1343,"r":35,"kind":"grass"},{"shape":"circle","x":1141,"y":1360,"r":35,"kind":"grass"},{"shape":"circle","x":1150,"y":1377,"r":35,"kind":"grass"},{"shape":"circle","x":1158,"y":1357,"r":35,"kind":"grass"},{"shape":"circle","x":1155,"y":1335,"r":35,"kind":"grass"},{"shape":"circle","x":1142,"y":1309,"r":35,"kind":"grass"},{"shape":"circle","x":1130,"y":1297,"r":35,"kind":"grass"},{"shape":"circle","x":1136,"y":1270,"r":35,"kind":"grass"},{"shape":"circle","x":1150,"y":1258,"r":35,"kind":"grass"},{"shape":"circle","x":1180,"y":1264,"r":35,"kind":"grass"},{"shape":"circle","x":1193,"y":1278,"r":35,"kind":"grass"},{"shape":"circle","x":1201,"y":1295,"r":35,"kind":"grass"},{"shape":"circle","x":1220,"y":1312,"r":35,"kind":"grass"},{"shape":"circle","x":1232,"y":1329,"r":35,"kind":"grass"},{"shape":"circle","x":1241,"y":1348,"r":35,"kind":"grass"},{"shape":"circle","x":1249,"y":1365,"r":35,"kind":"grass"},{"shape":"circle","x":1249,"y":1386,"r":35,"kind":"grass"},{"shape":"circle","x":1249,"y":1403,"r":35,"kind":"grass"},{"shape":"circle","x":1249,"y":1422,"r":35,"kind":"grass"},{"shape":"circle","x":1246,"y":1439,"r":35,"kind":"grass"},{"shape":"circle","x":1238,"y":1456,"r":35,"kind":"grass"},{"shape":"circle","x":1224,"y":1468,"r":35,"kind":"grass"},{"shape":"circle","x":1212,"y":1487,"r":35,"kind":"grass"},{"shape":"circle","x":1200,"y":1499,"r":35,"kind":"grass"},{"shape":"circle","x":1186,"y":1508,"r":35,"kind":"grass"},{"shape":"circle","x":1164,"y":1516,"r":35,"kind":"grass"},{"shape":"circle","x":1163,"y":1496,"r":35,"kind":"grass"},{"shape":"circle","x":1180,"y":1470,"r":35,"kind":"grass"},{"shape":"circle","x":1189,"y":1453,"r":35,"kind":"grass"},{"shape":"circle","x":1193,"y":1436,"r":35,"kind":"grass"},{"shape":"circle","x":1198,"y":1414,"r":35,"kind":"grass"},{"shape":"circle","x":1198,"y":1397,"r":35,"kind":"grass"},{"shape":"circle","x":1198,"y":1379,"r":35,"kind":"grass"},{"shape":"circle","x":1198,"y":1403,"r":35,"kind":"grass"},{"shape":"circle","x":1190,"y":1430,"r":35,"kind":"grass"},{"shape":"circle","x":1186,"y":1447,"r":35,"kind":"grass"},{"shape":"circle","x":1181,"y":1468,"r":35,"kind":"grass"},{"shape":"circle","x":1169,"y":1494,"r":35,"kind":"grass"},{"shape":"circle","x":1159,"y":1508,"r":35,"kind":"grass"},{"shape":"circle","x":1147,"y":1521,"r":35,"kind":"grass"},{"shape":"circle","x":1125,"y":1521,"r":35,"kind":"grass"},{"shape":"circle","x":1107,"y":1505,"r":35,"kind":"grass"},{"shape":"circle","x":1099,"y":1484,"r":35,"kind":"grass"}],"fill":{"on":true,"sprite":"🌳","r":26,"gap":58,"jitter":14,"margin":24,"exclude":[]},"objects":[{"x":956,"y":1889,"r":26,"sprite":"🌴"},{"x":1042,"y":1904,"r":26,"sprite":"🌴"},{"x":982,"y":1949,"r":26,"sprite":"🌴"},{"x":1038,"y":1919,"r":26,"sprite":"🌴"},{"x":1123,"y":1948,"r":26,"sprite":"🌴"},{"x":1087,"y":1922,"r":26,"sprite":"🌴"}],"decorations":[],"markers":[]}/*ENDMAPDATA*/;
+window.MAPS["stage2"] = /*MAPDATA*/{
+ "name": "stage2",
+ "title": "ささやきの谷",
+ "world": {
+  "width": 1100,
+  "height": 900,
+  "ground": "#6b6560"
+ },
+ "areas": [
+  {
+   "shape": "rect",
+   "x": 420,
+   "y": 640,
+   "w": 260,
+   "h": 220,
+   "kind": "dirt"
+  },
+  {
+   "shape": "rect",
+   "x": 300,
+   "y": 380,
+   "w": 500,
+   "h": 280,
+   "kind": "grass"
+  },
+  {
+   "shape": "circle",
+   "x": 820,
+   "y": 470,
+   "r": 110,
+   "kind": "grass2"
+  },
+  {
+   "shape": "rect",
+   "x": 480,
+   "y": 180,
+   "w": 140,
+   "h": 220,
+   "kind": "dirt"
+  },
+  {
+   "shape": "circle",
+   "x": 550,
+   "y": 170,
+   "r": 120,
+   "kind": "stone"
+  }
+ ],
+ "fill": {
+  "on": true,
+  "sprite": "🪨",
+  "r": 24,
+  "gap": 54,
+  "jitter": 12,
+  "margin": 26,
+  "exclude": []
+ },
+ "objects": [
+  {
+   "x": 300,
+   "y": 300,
+   "r": 24,
+   "sprite": "🪨"
+  },
+  {
+   "x": 800,
+   "y": 300,
+   "r": 24,
+   "sprite": "🪨"
+  }
+ ],
+ "decorations": [
+  {
+   "x": 420,
+   "y": 560,
+   "sprite": "🌿"
+  },
+  {
+   "x": 700,
+   "y": 520,
+   "sprite": "🌼"
+  },
+  {
+   "x": 560,
+   "y": 300,
+   "sprite": "🕸️"
+  }
+ ],
+ "markers": [
+  {
+   "x": 550,
+   "y": 800,
+   "type": "start"
+  },
+  {
+   "x": 560,
+   "y": 300,
+   "type": "npc"
+  },
+  {
+   "x": 550,
+   "y": 150,
+   "type": "exit"
+  }
+ ]
+};

@@ -157,7 +157,99 @@
     bossDefeated: false,
     keys: {},
     move: { active: false, tx: 0, ty: 0 }, // 「ここへ歩く」目標
+    // ---- 面・きろく（Ph2）----
+    stageId: null, // いま あそんで いる 面
+    flags: {}, // おはなしの すすみぐあい（例：{ talkedToTaro: true }）
+    talks: {}, // だれと 何回 話したか（ヒントを こくする のに つかう）
+    opened: {}, // あけた たからばこ の id
+    defeated: {}, // たおした てき の id
+    triggers: [], // 通ると 何かが おきる ばしょ
+    checkpoints: [], // やられた とき もどる ばしょ
+    titleT: 0, // 面の なまえを 出して いる のこり 時間
+    titleText: "",
+    cut: null, // カットシーン（カメラを 動かして セリフを 出す）
   };
+
+  // ---- そのときに 出す セリフを えらぶ ----
+  //   ふつうは lines。variants を 書くと、じょうけんや 話した 回数で かえられる。
+  //     variants: [
+  //       { minTalks: 3, lines: [...] },   // 3回目 いこう
+  //       { if: "sawCastle", lines: [...] },
+  //       { lines: [...] },                // どれにも 当てはまらない とき
+  //     ]
+  function pickLines(n) {
+    const list = n.variants;
+    if (!list || !list.length) return n.lines || [""];
+    const talks = G.talks[n.id] || 1;
+    for (const v of list) {
+      if (v.minTalks && talks < v.minTalks) continue;
+      if (!condOk(v)) continue;
+      return v.lines;
+    }
+    return n.lines || [""];
+  }
+
+  // =========================================================
+  //  カットシーン（カメラを 動かして セリフを 出す）
+  // =========================================================
+  //   シナリオの かきかた：
+  //     cutscene: { look: { x: 700, y: 160 }, lines: ["…"], hold: 1.2, name: "リイコ" }
+  function startCutscene(cs) {
+    G.cut = {
+      look: cs.look || null,
+      lines: cs.lines || [],
+      name: cs.name || "",
+      hold: cs.hold == null ? 1.0 : cs.hold,
+      t: 0,
+      phase: "pan", // pan → hold → talk → back
+    };
+    G.paused = true; // うごけない（見せ場だから）
+  }
+
+  function updateCutscene(dt) {
+    const c = G.cut;
+    if (!c) return;
+    if (c.phase === "pan" || c.phase === "hold") {
+      c.t += dt;
+      if (c.phase === "pan" && c.t > 1.1) {
+        c.phase = "hold";
+        c.t = 0;
+      } else if (c.phase === "hold" && c.t > c.hold) {
+        c.phase = "talk";
+        if (c.lines.length) Dialogue.open(c.name, c.lines, () => endCutscene());
+        else endCutscene();
+      }
+    }
+  }
+
+  function endCutscene() {
+    const c = G.cut;
+    if (!c) return;
+    c.phase = "back";
+    c.t = 0;
+    G.cut = null;
+    G.paused = false;
+  }
+
+  // カットシーン中の カメラの 目あて（なめらかに 近づく）
+  function cutCamTarget() {
+    const c = G.cut;
+    if (!c || !c.look) return null;
+    return c.look;
+  }
+
+  // ---- じょうけん（フラグ）を みたして いるか ----
+  //   シナリオに if:"◯◯" / ifNot:"◯◯" と 書くだけで 出しわけできる
+  function condOk(o) {
+    if (!o) return true;
+    if (o.if && !G.flags[o.if]) return false;
+    if (o.ifNot && G.flags[o.ifNot]) return false;
+    return true;
+  }
+  // ---- フラグを 立てる（set:"◯◯" と 書く）----
+  function applySet(o) {
+    if (o && o.set) G.flags[o.set] = true;
+  }
 
   // ---- しょきか ----
   function setup(scenario) {
@@ -213,7 +305,8 @@
       orbitA: 0,
     };
 
-    G.enemies = scenario.enemies.map((e) => {
+    // てき：じょうけんを みたす もの だけ／たおした ものは 出さない
+    G.enemies = (scenario.enemies || []).filter(condOk).map((e) => {
       const ent = {
         ...e,
         hp: e.maxHp,
@@ -239,11 +332,18 @@
       return ent;
     });
 
-    G.chests = scenario.chests.map((c) => ({ ...c, opened: false }));
-    G.npcs = scenario.npcs.map((n) => ({ ...n, _inside: false }));
+    // たおした てきは そのまま（セーブから もどした ときも おなじ）
+    for (const e of G.enemies) if (G.defeated[e.id]) e.alive = false;
+
+    G.chests = (scenario.chests || [])
+      .filter(condOk)
+      .map((c) => ({ ...c, opened: !!G.opened[c.id] }));
+    G.npcs = (scenario.npcs || []).map((n) => ({ ...n, _inside: false }));
+    G.triggers = (scenario.triggers || []).map((t) => ({ ...t, _done: false, _inside: false }));
+    G.checkpoints = (scenario.checkpoints || []).map((c) => ({ ...c, _done: false }));
 
     // とびら：かべ(木/レンガ)を 障害物に くわえる（あいたら 消える）
-    G.gates = (scenario.gates || []).map((g) => ({ ...g, open: false, _inside: false }));
+    G.gates = (scenario.gates || []).filter(condOk).map((g) => ({ ...g, open: false, _inside: false }));
     for (const g of G.gates) {
       for (const w of g.wall || []) {
         G.obstacles.push({ ...w, gateId: g.id });
@@ -251,7 +351,6 @@
     }
 
     G.exit = scenario.exit ? { ...scenario.exit, _done: false } : null;
-    G.items = {};
     G.bossDefeated = false;
     G.bullets = [];
     G.floaters = [];
@@ -588,6 +687,12 @@
 
   // ---- こうしん（毎フレーム） ----
   function update(dt) {
+    if (G.titleT > 0) G.titleT -= dt;
+    if (G.cut) {
+      updateCutscene(dt);
+      updateCamera();
+      return;
+    }
     if (G.paused) return;
     // ★ヒットストップ：当たった しゅんかん だけ 世界を 止める
     if (G.hitstop > 0) {
@@ -661,6 +766,78 @@
     if (p.trail.length > 70) p.trail.shift();
   }
 
+  // =========================================================
+  //  面（ステージ）と きろく（Ph2）
+  // =========================================================
+  const SAVE_KEY = "riiko_save_v1";
+
+  function saveGame() {
+    try {
+      localStorage.setItem(
+        SAVE_KEY,
+        JSON.stringify({
+          v: 1,
+          stageId: G.stageId,
+          flags: G.flags,
+          talks: G.talks,
+          items: G.items,
+          opened: G.opened,
+          defeated: G.defeated,
+          respawn: G.respawn,
+        })
+      );
+    } catch (e) {}
+  }
+
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      return d && d.v === 1 && window.STAGES[d.stageId] ? d : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearSave() {
+    try {
+      localStorage.removeItem(SAVE_KEY);
+    } catch (e) {}
+  }
+
+  // 面を よみこんで はじめる
+  function goToStage(id, opts) {
+    const sc = window.STAGES[id];
+    if (!sc) return false;
+    G.stageId = id;
+    setup(sc);
+    if (opts && opts.respawn) {
+      // セーブから もどす ときは 前の ばしょへ
+      G.player.x = opts.respawn.x;
+      G.player.y = opts.respawn.y;
+      G.respawn = { x: opts.respawn.x, y: opts.respawn.y };
+    }
+    G.titleText = sc.title || "";
+    G.titleT = 2.6; // 面の なまえを しばらく 出す
+    saveGame();
+    return true;
+  }
+
+  // 出口 → つぎの 面へ
+  function goNextStage() {
+    const sc = window.STAGES[G.stageId];
+    const next = sc && sc.next;
+    if (next && window.STAGES[next]) {
+      goToStage(next);
+    } else {
+      Dialogue.open("おしまい", [
+        "ここまで！ つづきは これから 作ります。",
+        "あそんで くれて ありがとう！🎉",
+      ]);
+    }
+  }
+
   // 出口が つかえるか（ボスの いない ステージでは requireBoss:false に する）
   function exitReady() {
     if (!G.exit) return false;
@@ -675,9 +852,12 @@
     for (const c of G.chests) {
       if (!c.opened && dist(p.x, p.y, c.x, c.y) < PLAYER_R + 26) {
         c.opened = true;
+        G.opened[c.id] = true;
+        applySet(c);
         if (c.key) G.items[c.key] = (G.items[c.key] || 0) + 1;
         addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
         Sfx.play("chest");
+        saveGame();
         Dialogue.open("たからばこ", [c.message]);
         return;
       }
@@ -710,14 +890,45 @@
     // とうじょうじんぶつ（ヒントをくれる）
     //   ★ちかづきすぎ ないと 話しかけない。NPCごとに r で かえられる
     for (const n of G.npcs) {
+      if (!condOk(n)) continue;
       const near = dist(p.x, p.y, n.x, n.y) < (n.r || NPC_TALK_R);
       if (near && !n._inside) {
         n._inside = true;
+        G.talks[n.id] = (G.talks[n.id] || 0) + 1;
+        applySet(n);
         Sfx.play("talk");
-        Dialogue.open(n.name, n.lines);
+        Dialogue.open(n.name, pickLines(n));
         return;
       }
       if (!near) n._inside = false;
+    }
+
+    // ★通ると 何かが おきる ばしょ（カットシーン・フラグ）
+    for (const t of G.triggers) {
+      if (t._done && t.once !== false) continue;
+      if (!condOk(t)) continue;
+      const near = dist(p.x, p.y, t.x, t.y) < (t.r || 50);
+      if (near && !t._inside) {
+        t._inside = true;
+        t._done = true;
+        applySet(t);
+        saveGame();
+        if (t.cutscene) startCutscene(t.cutscene);
+        else if (t.lines) Dialogue.open(t.name || "", t.lines);
+        return;
+      }
+      if (!near) t._inside = false;
+    }
+
+    // ★チェックポイント（やられた とき ここから)
+    for (const c of G.checkpoints) {
+      if (c._done) continue;
+      if (dist(p.x, p.y, c.x, c.y) < (c.r || 50)) {
+        c._done = true;
+        G.respawn = { x: c.x, y: c.y };
+        addFloater(c.x, c.y - 40, "ここから やりなおせるよ", "#9fd");
+        saveGame();
+      }
     }
 
     // 出口（ボスをたおすと つかえる。requireBoss:false なら いつでも つかえる）
@@ -725,6 +936,8 @@
       const near = dist(p.x, p.y, G.exit.x, G.exit.y) < (G.exit.r || 40);
       if (near && exitReady() && !G.exit._done) {
         G.exit._done = true;
+        applySet(G.exit);
+        G.exit._goNext = true; // かいわが おわったら つぎの 面へ
         Dialogue.open("しゅつぐち", G.exit.lines || ["つぎの ステージへ！"]);
         return;
       }
@@ -858,6 +1071,8 @@
       if (e.dummy) continue;
 
       // リイコに ぶつかると ダメージ
+      //   ★目を まわして いる あいだは あんぜん（せっかくの チャンスなので）
+      if (e.chargeState === "dizzy") e.touchCd = Math.max(e.touchCd, 0.2);
       if (dist(e.x, e.y, p.x, p.y) < PLAYER_R + ENEMY_R && e.touchCd <= 0) {
         e.touchCd = 1.0;
         e.attackedT = 0; // ★この あと 0.45びょうが ジャスト反げきの チャンス
@@ -935,10 +1150,15 @@
     }
 
     if (e.chargeState === "windup") {
-      // その場で ぷるぷる。おわる しゅんかんの 向きを おぼえる
-      const d = dist(e.x, e.y, p.x, p.y) || 1;
-      e.dashX = (p.x - e.x) / d;
-      e.dashY = (p.y - e.y) / d;
+      // その場で ぷるぷる。
+      // ★ねらいを さだめるのは 前半だけ。後半は もう 向きを かえない。
+      //   （さいごまで 追いかけると、どこへ にげても 当たって しまう）
+      const aimUntil = (e.windupSec || 0.8) * (1 - (e.aimRatio == null ? 0.45 : e.aimRatio));
+      if (e.chargeT > aimUntil) {
+        const d = dist(e.x, e.y, p.x, p.y) || 1;
+        e.dashX = (p.x - e.x) / d;
+        e.dashY = (p.y - e.y) / d;
+      }
       if (e.chargeT <= 0) {
         e.chargeState = "dash";
         e.chargeT = e.dashSec || 1.1;
@@ -995,6 +1215,8 @@
 
   function defeatEnemy(e) {
     e.alive = false;
+    if (e.remember) G.defeated[e.id] = true; // remember:true の てきは 生きかえらない
+    applySet(e);
     addFloater(e.x, e.y - 30, "たおした！✨", "#ffe36b");
     Sfx.play("defeat");
     if (G.partner) {
@@ -1058,14 +1280,25 @@
 
   function updateCamera() {
     const p = G.player;
-    let cx = p.x - viewW / 2;
-    let cy = p.y - viewH / 2;
-    if (G.world.width > viewW) cx = clamp(cx, 0, G.world.width - viewW);
-    else cx = (G.world.width - viewW) / 2;
-    if (G.world.height > viewH) cy = clamp(cy, 0, G.world.height - viewH);
-    else cy = (G.world.height - viewH) / 2;
-    G.cam.x = cx;
-    G.cam.y = cy;
+    const look = cutCamTarget();
+    const fx = look ? look.x : p.x;
+    const fy = look ? look.y : p.y;
+    let cx = fx - viewW / 2;
+    let cy = fy - viewH / 2;
+    // ★カットシーンの ときは 世界の そとまで カメラを 出せる
+    //   （しろは 世界の いちばん 上に あるので、そうしないと 見せ場に ならない）
+    if (!look) {
+      if (G.world.width > viewW) cx = clamp(cx, 0, G.world.width - viewW);
+      else cx = (G.world.width - viewW) / 2;
+      if (G.world.height > viewH) cy = clamp(cy, 0, G.world.height - viewH);
+      else cy = (G.world.height - viewH) / 2;
+      G.cam.x = cx;
+      G.cam.y = cy;
+    } else {
+      // カットシーンでは すこしずつ 近づく（ぱっと 飛ばない）
+      G.cam.x += (cx - G.cam.x) * 0.06;
+      G.cam.y += (cy - G.cam.y) * 0.06;
+    }
   }
 
   // ---- びょうが ----
@@ -1227,6 +1460,22 @@
 
     drawHud();
     drawDown();
+    drawStageTitle();
+  }
+
+  // 面の はじめに なまえを ふわっと 出す
+  function drawStageTitle() {
+    if (G.titleT <= 0 || !G.titleText) return;
+    const a = G.titleT > 2.1 ? (2.6 - G.titleT) / 0.5 : Math.min(1, G.titleT / 0.7);
+    ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, viewH / 2 - 52, viewW, 104);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 40px system-ui, 'Segoe UI Emoji', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(G.titleText, viewW / 2, viewH / 2);
+    ctx.globalAlpha = 1;
   }
 
   // 左上：ハート（リイコの げんき）
@@ -1393,9 +1642,10 @@
     textEl: document.getElementById("dialogue-text"),
     lines: [],
     idx: 0,
-    open(name, lines) {
+    open(name, lines, onClose) {
       this.lines = lines;
       this.idx = 0;
+      this.onClose = onClose || null;
       this.nameEl.textContent = name;
       this.textEl.textContent = lines[0];
       this.box.classList.remove("hidden");
@@ -1409,6 +1659,14 @@
     close() {
       this.box.classList.add("hidden");
       G.paused = false;
+      const cb = this.onClose;
+      this.onClose = null;
+      if (cb) cb();
+      // 出口の かいわが おわったら つぎの 面へ
+      if (G.exit && G.exit._goNext) {
+        G.exit._goNext = false;
+        goNextStage();
+      }
     },
   };
   Dialogue.box.addEventListener("pointerdown", (ev) => {
@@ -1472,10 +1730,43 @@
 
   // ---- そとから呼ぶ ----
   window.RiikoGame = {
-    start(scenario) {
+    // scenario を そのまま わたす（テスト用）／なにも わたさないと STAGES から はじめる
+    start(scenario, opts) {
       resize();
       Sfx.warmUp(); // スタートボタンを おした ながれで 音を つかえるように する
-      setup(scenario);
+      const cont = opts && opts.continue;
+
+      if (scenario) {
+        // 1つの 面だけ うごかす（テストや ためし用）
+        G.flags = {};
+        G.talks = {};
+        G.items = {};
+        G.opened = {};
+        G.defeated = {};
+        G.stageId = null;
+        setup(scenario);
+        G.titleText = scenario.title || "";
+        G.titleT = 2.6;
+      } else {
+        const save = cont ? loadSave() : null;
+        if (save) {
+          G.flags = save.flags || {};
+          G.talks = save.talks || {};
+          G.items = save.items || {};
+          G.opened = save.opened || {};
+          G.defeated = save.defeated || {};
+          goToStage(save.stageId, { respawn: save.respawn });
+        } else {
+          clearSave();
+          G.flags = {};
+          G.talks = {};
+          G.items = {};
+          G.opened = {};
+          G.defeated = {};
+          goToStage(window.FIRST_STAGE || "stage1");
+        }
+      }
+
       if (!inputBound) {
         bindInput();
         inputBound = true;
@@ -1487,6 +1778,9 @@
       const hint = document.getElementById("hint");
       if (hint) setTimeout(() => (hint.style.opacity = "0"), 5000);
     },
+    // つづきが あるか（スタート画面で つかう）
+    hasSave: () => !!loadSave(),
+    eraseSave: () => clearSave(),
     // テスト用：手動で1フレーム進める／状態をのぞく（ふだんは使いません）
     _test: {
       state: G,
@@ -1511,6 +1805,11 @@
       },
       hurt: (n) => damagePlayer(n || 1),
       combo: () => G.player.combo,
+      save: () => saveGame(),
+      load: () => loadSave(),
+      erase: () => clearSave(),
+      goStage: (id) => goToStage(id),
+      cutscene: (cs) => startCutscene(cs),
     },
   };
 })();

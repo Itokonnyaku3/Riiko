@@ -12,13 +12,36 @@
   const gate = document.getElementById("gate");
   const input = document.getElementById("gate-input");
   const btn = document.getElementById("gate-btn");
+  const newBtn = document.getElementById("gate-new");
   const errEl = document.getElementById("gate-error");
 
   const STORAGE_KEY = "riiko_ok";
 
-  function begin() {
+  // つづきが あるなら「つづきから」、なければ さいしょから
+  function begin(fresh) {
     gate.style.display = "none";
-    window.RiikoGame.start(SCENARIO);
+    window.RiikoGame.start(null, { continue: !fresh });
+  }
+
+  // つづきが ある ときだけ「さいしょから」を 出す
+  function refreshButtons() {
+    const has = window.RiikoGame.hasSave();
+    btn.textContent = has ? "つづきから" : "スタート";
+    if (newBtn) newBtn.classList.toggle("hidden", !has);
+  }
+
+  if (newBtn) {
+    newBtn.addEventListener("click", () => {
+      const val = (input.value || "").trim().toLowerCase();
+      const okAlready = sessionOk();
+      if (!okAlready && val !== String(GAME_CONFIG.password).toLowerCase()) {
+        errEl.textContent = "あいことばを 入れてね";
+        input.focus();
+        return;
+      }
+      window.RiikoGame.eraseSave();
+      begin(true);
+    });
   }
 
   function tryPassword() {
@@ -68,12 +91,16 @@
   });
 
   // 同じセッションのあいだは あいことばを もう一度きかない
-  let alreadyOk = false;
-  try {
-    alreadyOk = sessionStorage.getItem(STORAGE_KEY) === "1";
-  } catch (e) {}
+  function sessionOk() {
+    try {
+      return sessionStorage.getItem(STORAGE_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
 
-  if (alreadyOk) {
+  refreshButtons();
+  if (sessionOk()) {
     begin();
   } else {
     setTimeout(() => input.focus(), 200);
