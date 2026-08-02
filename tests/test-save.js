@@ -69,12 +69,38 @@ const run = (frames) => {
   return st;
 };
 
+// カットシーンが おわるまで すすめる
+const finishCutscene = (max) => {
+  const st = G._test.state;
+  for (let i = 0; i < (max || 2000) && st.cut; i++) {
+    G._test.step(1 / 60);
+    if (dialogOpen()) closeDialogue();
+  }
+  return st;
+};
+
 // ===== 1) さいしょから はじめる =====
 G.start();
 let st = G._test.state;
 ok("1面から はじまる", st.stageId === "stage1", st.stageId);
 ok("面の なまえが 出る", st.titleT > 0 && st.titleText.indexOf("はじまり") >= 0, st.titleText);
 ok("はじめから セーブが できて いる", G.hasSave() === true);
+
+// ===== 1.5) プロローグ（ハナが さらわれる）=====
+ok("プロローグが はじまる", !!st.cut && st.paused === true);
+let sawHana = false;
+let sawMant = false;
+for (let i = 0; i < 3000 && st.cut; i++) {
+  G._test.step(1 / 60);
+  if (st.actors.some((a) => a.id === "hana")) sawHana = true;
+  if (st.actors.some((a) => a.id === "mant")) sawMant = true;
+  if (dialogOpen()) closeDialogue();
+}
+ok("ハナが 出てくる", sawHana);
+ok("かげマントが 出てくる", sawMant);
+ok("プロローグが おわると うごける", st.cut === null && st.paused === false);
+ok("プロローグは 1回だけ", st.flags["prologueDone"] === true);
+ok("プロローグの 人は 消えて いる", st.actors.length === 0);
 
 // ===== 2) フラグ・宝箱・てき を すすめる =====
 st.player.x = 255; st.player.y = 1265; G._test.step(1 / 60); closeDialogue();
@@ -111,15 +137,17 @@ st.player.x = 710; st.player.y = 430; G._test.step(1 / 60);
 ok("高台で フラグが 立つ", st.flags["sawCastle"] === true);
 ok("カットシーンが はじまる", !!st.cut && st.paused === true);
 const camBefore = { x: st.cam.x, y: st.cam.y };
-// カメラが 動く あいだ（かいわは まだ おさない）
-for (let i = 0; i < 80; i++) G._test.step(1 / 60);
-ok("カメラが しろの ほうへ 動く", st.cam.y < camBefore.y - 20,
-  Math.round(camBefore.y) + " → " + Math.round(st.cam.y));
-// セリフが 出るまで すすめて、ぜんぶ おくる
-for (let i = 0; i < 400 && st.cut; i++) {
+// セリフを おくりながら さいごまで。とちゅうの ようすを 見る
+let camMoved = false;
+let sawMant2 = false;
+for (let i = 0; i < 3000 && st.cut; i++) {
   G._test.step(1 / 60);
+  if (st.cam.y < camBefore.y - 20) camMoved = true;
+  if (st.actors.some((a) => a.id === "mant2")) sawMant2 = true;
   if (dialogOpen()) closeDialogue();
 }
+ok("カメラが しろの ほうへ 動く", camMoved, "y " + Math.round(camBefore.y) + " から");
+ok("かげマントが すがたを 見せる（次の面への ひき）", sawMant2);
 ok("カットシーンが おわると うごける", st.cut === null && st.paused === false);
 
 // ===== 5) じょうけんつきの セリフ =====

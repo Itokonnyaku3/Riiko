@@ -165,6 +165,7 @@
     defeated: {}, // たおした てき の id
     triggers: [], // 通ると 何かが おきる ばしょ
     checkpoints: [], // やられた とき もどる ばしょ
+    actors: [], // カットシーンに だけ 出る 人（ハナ・かげマント など）
     titleT: 0, // 面の なまえを 出して いる のこり 時間
     titleText: "",
     cut: null, // カットシーン（カメラを 動かして セリフを 出す）
@@ -194,41 +195,122 @@
   // =========================================================
   //   シナリオの かきかた：
   //     cutscene: { look: { x: 700, y: 160 }, lines: ["…"], hold: 1.2, name: "リイコ" }
+  //  かきかた（かんたんな かたち）
+  //    cutscene: { look:{x,y}, hold:1.2, name:"リイコ", lines:["…"] }
+  //  かきかた（じゅんばんに いろいろ する）
+  //    cutscene: { steps: [
+  //      { look:{x:700,y:2200}, wait:0.6 },              // カメラを 動かす／まつ
+  //      { name:"ハナ", lines:["…"] },                    // セリフ
+  //      { spawn:{ id:"mant", x:700, y:1990, sprite:"🥷", size:64 } }, // 人を 出す
+  //      { move:{ id:"mant", x:700, y:2150, sec:0.9 } },  // 人を うごかす
+  //      { move:{ id:"mant", x:700, y:1900, sec:1.4, with:["hana"] } }, // いっしょに
+  //      { despawn:["mant","hana"] },                     // 人を 消す
+  //      { set:"prologueDone" },                          // フラグを 立てる
+  //    ] }
   function startCutscene(cs) {
-    G.cut = {
-      look: cs.look || null,
-      lines: cs.lines || [],
-      name: cs.name || "",
-      hold: cs.hold == null ? 1.0 : cs.hold,
-      t: 0,
-      phase: "pan", // pan → hold → talk → back
-    };
+    let steps = cs.steps;
+    if (!steps) {
+      // むかしの かんたんな かたちを steps に なおす
+      steps = [];
+      if (cs.look) steps.push({ look: cs.look, wait: cs.hold == null ? 1.0 : cs.hold });
+      if (cs.lines && cs.lines.length) steps.push({ name: cs.name || "", lines: cs.lines });
+    }
+    G.cut = { steps: steps.slice(), i: -1, look: null, wait: 0, move: null };
     G.paused = true; // うごけない（見せ場だから）
+    nextCutStep();
+  }
+
+  function findActor(id) {
+    for (const a of G.actors) if (a.id === id) return a;
+    return null;
+  }
+
+  function nextCutStep() {
+    const c = G.cut;
+    if (!c) return;
+    c.i += 1;
+    if (c.i >= c.steps.length) {
+      endCutscene();
+      return;
+    }
+    const st = c.steps[c.i];
+
+    if (st.look) c.look = st.look;
+    if (st.set) G.flags[st.set] = true;
+
+    if (st.spawn) {
+      const a = { dir: "down", frame: 0, animT: 0, size: 56, ...st.spawn };
+      a.walk = st.spawn.walk ? loadWalk(st.spawn.walk) : null;
+      G.actors.push(a);
+    }
+    if (st.despawn) {
+      const ids = Array.isArray(st.despawn) ? st.despawn : [st.despawn];
+      G.actors = G.actors.filter((a) => ids.indexOf(a.id) < 0);
+    }
+    if (st.sfx) Sfx.play(st.sfx);
+
+    // うごかす
+    if (st.move) {
+      const who = [st.move.id].concat(st.move.with || []);
+      const list = who.map(findActor).filter(Boolean);
+      c.move = {
+        list: list.map((a) => ({ a: a, x0: a.x, y0: a.y })),
+        dx: st.move.x,
+        dy: st.move.y,
+        sec: st.move.sec || 1,
+        t: 0,
+      };
+      c.wait = 0;
+      return; // うごき おわったら つぎへ
+    }
+
+    // セリフ
+    if (st.lines && st.lines.length) {
+      Dialogue.open(st.name || "", st.lines, () => nextCutStep());
+      return;
+    }
+
+    // まつ
+    c.wait = st.wait == null ? 0.4 : st.wait;
+    if (c.wait <= 0) nextCutStep();
   }
 
   function updateCutscene(dt) {
     const c = G.cut;
     if (!c) return;
-    if (c.phase === "pan" || c.phase === "hold") {
-      c.t += dt;
-      if (c.phase === "pan" && c.t > 1.1) {
-        c.phase = "hold";
-        c.t = 0;
-      } else if (c.phase === "hold" && c.t > c.hold) {
-        c.phase = "talk";
-        if (c.lines.length) Dialogue.open(c.name, c.lines, () => endCutscene());
-        else endCutscene();
+
+    // 人が うごいて いる とちゅう
+    if (c.move) {
+      const m = c.move;
+      m.t += dt;
+      const k = Math.min(1, m.t / m.sec);
+      for (const it of m.list) {
+        const nx = it.x0 + (m.dx - it.x0) * k;
+        const ny = it.y0 + (m.dy - it.y0) * k;
+        advanceWalk(it.a, dt, nx - it.a.x, ny - it.a.y);
+        it.a.x = nx;
+        it.a.y = ny;
       }
+      if (k >= 1) {
+        c.move = null;
+        nextCutStep();
+      }
+      return;
+    }
+
+    // まって いる とちゅう
+    if (c.wait > 0) {
+      c.wait -= dt;
+      if (c.wait <= 0) nextCutStep();
     }
   }
 
   function endCutscene() {
-    const c = G.cut;
-    if (!c) return;
-    c.phase = "back";
-    c.t = 0;
+    if (!G.cut) return;
     G.cut = null;
+    G.actors = [];
     G.paused = false;
+    saveGame();
   }
 
   // カットシーン中の カメラの 目あて（なめらかに 近づく）
@@ -339,6 +421,7 @@
       .filter(condOk)
       .map((c) => ({ ...c, opened: !!G.opened[c.id] }));
     G.npcs = (scenario.npcs || []).map((n) => ({ ...n, _inside: false }));
+    G.actors = [];
     G.triggers = (scenario.triggers || []).map((t) => ({ ...t, _done: false, _inside: false }));
     G.checkpoints = (scenario.checkpoints || []).map((c) => ({ ...c, _done: false }));
 
@@ -821,6 +904,11 @@
     G.titleText = sc.title || "";
     G.titleT = 2.6; // 面の なまえを しばらく 出す
     saveGame();
+    // ★面に 入った ときの 見せ場（1回だけ）
+    if (sc.intro && !(sc.intro.once && G.flags[sc.intro.once])) {
+      if (sc.intro.once) G.flags[sc.intro.once] = true;
+      startCutscene(sc.intro.cutscene || sc.intro);
+    }
     return true;
   }
 
@@ -913,6 +1001,13 @@
         t._done = true;
         applySet(t);
         saveGame();
+        // ★ほめる（大きな もじ＋音）… 止めない
+        if (t.praise) {
+          addFloater(p.x, p.y - 70, t.praise, "#ffe36b");
+          Sfx.play(t.sfx || "solved");
+        }
+        // ★つぶやき（小さな もじ）… 止めない ので テンポが 落ちない
+        if (t.mutter) addFloater(p.x, p.y - 46, t.mutter, "#dff");
         if (t.cutscene) startCutscene(t.cutscene);
         else if (t.lines) Dialogue.open(t.name || "", t.lines);
         return;
@@ -1366,6 +1461,13 @@
       drawNameTag(n.name, n.x + ox, n.y + oy - 34);
     }
 
+    // カットシーンに だけ 出る 人
+    for (const a of G.actors) {
+      if (!onScreen(a.x, a.y, 60)) continue;
+      if (!drawWalker(a, a.x + ox, a.y + oy, 0)) drawSprite(a.sprite, a.x + ox, a.y + oy, a.size || 44);
+      if (a.name) drawNameTag(a.name, a.x + ox, a.y + oy - (a.size || 44) * 0.6);
+    }
+
     for (const e of G.enemies) {
       if (!e.alive) continue;
       const bob = Math.sin(e.phase) * 3;
@@ -1505,9 +1607,28 @@
     ctx.fillText("すぐ もどるよ！", viewW / 2, viewH / 2 + 26);
   }
 
+  // 右上：やみの しろ まで あと 何めん か（原則A：目あてが いつも 見えている）
+  function drawGoal() {
+    const order = window.STAGE_ORDER || [];
+    const i = order.indexOf(G.stageId);
+    if (i < 0) return;
+    const left = order.length - 1 - i;
+    const text = left > 0 ? "🏰 やみのしろ まで あと " + left + "めん" : "🏰 やみのしろ";
+    ctx.font = "bold 18px system-ui, 'Segoe UI Emoji', sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 22;
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    roundRect(viewW - 12 - w, 12, w, 32, 10);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, viewW - 23, 29);
+  }
+
   // あつめたアイテムの かず（とびらの じょうけん）を 左上に表示
   function drawHud() {
     drawHearts();
+    drawGoal();
     const g = G.gates[0];
     if (!g || g.open) return;
     const have = G.items[g.requireKey] || 0;

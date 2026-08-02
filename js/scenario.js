@@ -36,5 +36,9 @@ window.WALKS = {
 // 面の 入れもの（js/stages/◯◯.js が ここに 自分を 入れます）
 window.STAGES = {};
 
+// 面の じゅんばん（HUDの「やみのしろ まで あと◯めん」に つかう）
+//   3面・4面が できたら ここに 足す
+window.STAGE_ORDER = ["stage1", "stage2", "stage3", "stage4"];
+
 // はじめる 面
 window.FIRST_STAGE = "stage1";
