@@ -36,6 +36,20 @@
 | [docs/FUN-CHECKLIST.md](docs/FUN-CHECKLIST.md) | **面白さチェックポイント**（○×で確かめる表。これが完成の判定基準） |
 | [docs/TASKS.md](docs/TASKS.md) | **タスク一覧**（フェーズごと・完了条件つき・依存関係） |
 | [docs/stage1-map.svg](docs/stage1-map.svg) | 1面の全体図 |
+| [tests/README.md](tests/README.md) | テストの はしらせかた |
+
+## キャラの 絵を さしかえるには
+
+`assets/` に 画像を おいて、`js/scenario.js` の 上のほうの `PLAYER_WALK` / `ENEMY_WALK` の
+ような かたまりを 1つ ふやし、キャラに `walk:` と `size:` を わたすだけです。
+
+- 128×128 の 正方形・背景とうめい（PNG）
+- キャラは **下ぞろえ**（足のうらが 下から 4%の ところ）
+- 4方向×2コマ：`down1 down2 up1 up2 left1 left2 right1 right2`
+- みぎ向きは ひだり向きの 左右はんてん で よい
+- **絵が よみこめない ときは 絵文字で 動く**ので、1つずつ 順に 置きかえられます
+
+やることリスト → [docs/TASKS.md](docs/TASKS.md) の「PhA キャラ・画像の さしかえ」
 
 ## ファイルのやくわり
 
