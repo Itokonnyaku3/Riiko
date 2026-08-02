@@ -78,7 +78,27 @@ const SCENARIO = {
     { id: "e1", x: 560, y: 1500, sprite: "😾", walk: ENEMY_WALK, size: 58, name: "いたずらネコ", maxHp: 12, attack: 2, behavior: "patrol", speed: 40, patrolRange: 90 },
     { id: "e2", x: 870, y: 1520, sprite: "😾", walk: ENEMY_WALK, size: 58, name: "いたずらネコ", maxHp: 12, attack: 2, behavior: "patrol", speed: 45, patrolRange: 80 },
     { id: "e3", x: 330, y: 1345, sprite: "🙀", walk: ENEMY_WALK, size: 58, name: "びっくりネコ", maxHp: 16, attack: 3, behavior: "chase", speed: 52, sight: 210 }, // 左の道（たからばこの ばんにん）
-    { id: "e4", x: 620, y: 900, sprite: "🙀", walk: ENEMY_WALK, size: 58, name: "もりの みはり", maxHp: 18, attack: 3, behavior: "chase", speed: 56, sight: 230 }, // 抜け道の むこう
+    // ★突進ネコ（抜け道の むこう）… ためる(❗)→まっすぐ 走る→かべで 目を まわす(💫)
+    //   目を まわして いる ところを 斬ると 2ばい。1面 ゆいいつの 手ごわい てき。
+    {
+      id: "e4",
+      x: 620,
+      y: 900,
+      sprite: "🙀",
+      walk: ENEMY_WALK,
+      size: 62,
+      name: "もりの みはり",
+      maxHp: 22,
+      attack: 3,
+      behavior: "charge",
+      sight: 260,
+      speed: 60,
+      windupSec: 0.8, // ためる（この あいだに よける）
+      dashSec: 0.85,
+      dashSpeed: 300,
+      dizzySec: 1.8, // 目を まわす（チャンス）
+      restSec: 1.2,
+    },
   ],
 
   // たからばこ（ぶつかると あく）

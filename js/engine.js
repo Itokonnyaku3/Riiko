@@ -105,6 +105,10 @@
     }
     const BANK = {
       swing: () => { tone("triangle", 780, 320, 0.09, 0.10); noise(0.06, 0.05); },
+      swingBig: () => { tone("triangle", 900, 240, 0.16, 0.13); noise(0.12, 0.09); },
+      nice: () => { tone("square", 440, 880, 0.09, 0.14); tone("square", 660, 1320, 0.14, 0.11, 0.07); },
+      dash: () => { tone("sawtooth", 160, 420, 0.22, 0.12); noise(0.18, 0.07); },
+      dizzy: () => { tone("sine", 700, 240, 0.35, 0.10); },
       hit: () => { tone("square", 260, 90, 0.11, 0.16); noise(0.07, 0.10); },
       dummy: () => { tone("triangle", 200, 140, 0.09, 0.10); noise(0.05, 0.06); },
       hurt: () => { tone("sawtooth", 320, 110, 0.22, 0.14); },
@@ -178,6 +182,8 @@
       atkT: 0, // 剣を ふって いる あいだ（見た目）
       atkCd: 0, // つぎに ふれるまで
       invT: 0, // むてき じかん（つづけて 減らない）
+      combo: 0, // 何はつめ か（1→2→3）
+      comboT: 0, // つづけて ふったと みなす のこり 時間
     };
     initWalker(G.player, scenario.player, 68); // あるく絵（4方向×2まい）
     G.respawn = { x: scenario.player.x, y: scenario.player.y };
@@ -220,6 +226,12 @@
         knockY: 0,
         knockT: 0, // 斬られて うしろに さがる
         flashT: 0, // 斬られて 白く 光る
+        attackedT: 9, // さいごに こうげきして から の 時間（ジャスト反げき用）
+        // 突進ネコ用
+        chargeState: "wait", // wait → windup → dash → dizzy
+        chargeT: 0.6,
+        dashX: 0,
+        dashY: 0,
       };
       initWalker(ent, e, 58); // あるく絵（walk を 書いた てき だけ）
       return ent;
@@ -444,14 +456,26 @@
   // =========================================================
   const SWORD_REACH = 56; // 剣の とどく ながさ
   const SWORD_ARC = 0.3; // 前の どのくらい 広い はんいに 当たるか（小さいほど 広い）
+  const COMBO_WINDOW = 0.75; // つづけて ふったと みなす 時間
+  const JUST_WINDOW = 0.45; // てきの こうげきの すぐ あと＝ジャスト反げき
 
   function swingSword() {
     const p = G.player;
     if (!G.running || G.paused || G.downT > 0) return;
     if (p.atkCd > 0) return;
-    p.atkCd = 0.4;
-    p.atkT = 0.18;
-    Sfx.play("swing");
+
+    // ---- 3だん コンボ（つづけて ふると 3はつめが つよい）----
+    if (p.comboT > 0 && p.combo < 3) p.combo += 1;
+    else p.combo = 1;
+    p.comboT = COMBO_WINDOW;
+    const finisher = p.combo === 3;
+
+    p.atkCd = finisher ? 0.55 : 0.36;
+    p.atkT = finisher ? 0.26 : 0.18;
+    Sfx.play(finisher ? "swingBig" : "swing");
+
+    const reach = SWORD_REACH * (finisher ? 1.25 : 1); // 3はつめは とどく はんいも 広い
+    const arc = finisher ? 0.05 : SWORD_ARC;
 
     // 前方の おうぎ形に いる てきに 当たる
     let hitAny = false;
@@ -460,33 +484,55 @@
       const dx = e.x - p.x,
         dy = e.y - p.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 0.001;
-      if (d > SWORD_REACH + ENEMY_R) continue;
+      if (d > reach + ENEMY_R) continue;
       const facing = (dx / d) * p.dirX + (dy / d) * p.dirY;
-      if (facing < SWORD_ARC) continue; // うしろ・よこすぎる ものには 当たらない
-      hitEnemy(e, p.attack, dx / d, dy / d);
+      if (facing < arc) continue; // うしろ・よこすぎる ものには 当たらない
+
+      // ---- ごほうび：どれか 1つだけ つく ----
+      //   ジャスト反げき（てきが こうげきした すぐ あと）… 2ばい
+      //   目を まわして いる ところ            … 2ばい
+      //   3だんめ                              … 1.8ばい
+      let dmg = p.attack;
+      let praise = null;
+      if (e.attackedT < JUST_WINDOW || e.chargeState === "dizzy") {
+        dmg = Math.round(p.attack * 2);
+        praise = "ナイス！";
+      } else if (finisher) {
+        dmg = Math.round(p.attack * 1.8);
+        praise = "ズバッ！";
+      }
+      hitEnemy(e, dmg, dx / d, dy / d, praise);
       hitAny = true;
     }
     return hitAny;
   }
 
   // てきに ダメージ（剣でも ミィでも ここを 通す＝手ざわりを そろえる）
-  function hitEnemy(e, dmg, nx, ny) {
-    e.flashT = 0.12;
-    e.knockX = (nx || 0) * 260;
-    e.knockY = (ny || 0) * 260;
-    e.knockT = 0.16;
-    G.hitstop = 0.05; // ★当たった しゅんかん 止まる
-    G.shake = 5; // ★画面が すこし ゆれる
+  function hitEnemy(e, dmg, nx, ny, praise) {
+    const big = !!praise;
+    e.flashT = big ? 0.2 : 0.12;
+    e.knockX = (nx || 0) * (big ? 420 : 260);
+    e.knockY = (ny || 0) * (big ? 420 : 260);
+    e.knockT = big ? 0.22 : 0.16;
+    G.hitstop = big ? 0.09 : 0.05; // ★当たった しゅんかん 止まる（つよい ほど 長い）
+    G.shake = big ? 10 : 5; // ★画面が ゆれる
 
     if (e.dummy) {
       // かかしは こわれない。手ごたえだけ かえす
-      addFloater(e.x, e.y - 38, "コンッ！", "#ffe36b");
-      Sfx.play("dummy");
+      addFloater(e.x, e.y - 38, praise || "コンッ！", "#ffe36b");
+      Sfx.play(big ? "nice" : "dummy");
       return;
     }
     e.hp -= dmg;
-    addFloater(e.x, e.y - 38, "-" + dmg, "#fff");
-    Sfx.play("hit");
+    // ★ほめる ことばは、成こう した ときだけ 出す（せつめいは しない）
+    if (praise) {
+      addFloater(e.x, e.y - 62, praise, "#ffe36b");
+      addFloater(e.x, e.y - 38, "-" + dmg, "#ffd76b");
+      Sfx.play("nice");
+    } else {
+      addFloater(e.x, e.y - 38, "-" + dmg, "#fff");
+      Sfx.play("hit");
+    }
     if (e.hp <= 0) defeatEnemy(e);
   }
 
@@ -579,6 +625,10 @@
     if (p.atkT > 0) p.atkT -= dt;
     if (p.atkCd > 0) p.atkCd -= dt;
     if (p.invT > 0) p.invT -= dt;
+    if (p.comboT > 0) {
+      p.comboT -= dt;
+      if (p.comboT <= 0) p.combo = 0; // 間が あいたら 1はつめに もどる
+    }
 
     // 主人公は キーボード／ほうこうボタン だけで うごく
     if (kx || ky) {
@@ -786,6 +836,7 @@
       e.phase += dt * 4;
       if (e.flashT > 0) e.flashT -= dt;
       if (e.touchCd > 0) e.touchCd -= dt;
+      e.attackedT += dt; // こうげきして から の 時間（ジャスト反げき用）
 
       // 斬られて うしろに さがる
       if (e.knockT > 0) {
@@ -803,6 +854,7 @@
       // リイコに ぶつかると ダメージ
       if (dist(e.x, e.y, p.x, p.y) < PLAYER_R + ENEMY_R && e.touchCd <= 0) {
         e.touchCd = 1.0;
+        e.attackedT = 0; // ★この あと 0.45びょうが ジャスト反げきの チャンス
         damagePlayer(e.attack);
       }
 
@@ -851,6 +903,66 @@
       const tx = e.home.x + Math.sin(e.phase * 0.3) * 20;
       const ty = e.home.y + Math.cos(e.phase * 0.3) * 20;
       stepToward(e, tx, ty, e.speed || 18, dt, ENEMY_R, false);
+    } else if (e.behavior === "charge") {
+      moveCharger(e, dt, p);
+    }
+  }
+
+  // ---- 突進ネコ ----
+  //   ためる → まっすぐ とつげき → かべに ぶつかって 目を まわす
+  //   ★目を まわして いる あいだが チャンス（ダメージ 2ばい）
+  function moveCharger(e, dt, p) {
+    e.chargeT -= dt;
+
+    if (e.chargeState === "wait") {
+      // うろうろ しながら リイコを さがす
+      const r = 40;
+      const tx = e.home.x + Math.sin(e.phase * 0.4) * r;
+      const ty = e.home.y + Math.cos(e.phase * 0.3) * r * 0.6;
+      stepToward(e, tx, ty, (e.speed || 60) * 0.4, dt, ENEMY_R, true);
+      if (e.chargeT <= 0 && dist(e.x, e.y, p.x, p.y) < (e.sight || 260)) {
+        e.chargeState = "windup";
+        e.chargeT = e.windupSec || 0.8; // ためる 時間（よける ための ゆうよ）
+      }
+      return;
+    }
+
+    if (e.chargeState === "windup") {
+      // その場で ぷるぷる。おわる しゅんかんの 向きを おぼえる
+      const d = dist(e.x, e.y, p.x, p.y) || 1;
+      e.dashX = (p.x - e.x) / d;
+      e.dashY = (p.y - e.y) / d;
+      if (e.chargeT <= 0) {
+        e.chargeState = "dash";
+        e.chargeT = e.dashSec || 1.1;
+        Sfx.play("dash");
+      }
+      return;
+    }
+
+    if (e.chargeState === "dash") {
+      // まっすぐ 走る（よけない＝だから よけられる）
+      const sp = e.dashSpeed || 300;
+      const bx = e.x,
+        by = e.y;
+      e.x += e.dashX * sp * dt;
+      e.y += e.dashY * sp * dt;
+      resolveObstacles(e, ENEMY_R);
+      const moved = dist(e.x, e.y, bx, by);
+      // かべに ぶつかった（思ったより すすめなかった）or 時間ぎれ
+      if (moved < sp * dt * 0.5 || e.chargeT <= 0) {
+        e.chargeState = "dizzy";
+        e.chargeT = e.dizzySec || 1.8;
+        addFloater(e.x, e.y - 40, "目が まわる…💫", "#9fd");
+        Sfx.play("dizzy");
+      }
+      return;
+    }
+
+    // dizzy：うごかない。ここを たたく のが 正かい
+    if (e.chargeT <= 0) {
+      e.chargeState = "wait";
+      e.chargeT = e.restSec || 1.2;
     }
   }
 
@@ -1024,11 +1136,25 @@
         ctx.arc(e.x + ox, e.y + oy + bob, 24, 0, Math.PI * 2);
         ctx.fill();
       }
+      // ★突進ネコ：いま 何を して いるか 見て わかるように する
+      let ex = e.x,
+        ey = e.y;
+      if (e.behavior === "charge" && e.chargeState === "windup") {
+        ex += Math.sin(e.phase * 9) * 4; // ぷるぷる ためて いる
+      }
       let top = 32; // HPバー・なまえを 出す たかさ（頭の うえ）
-      if (drawWalker(e, e.x + ox, e.y + oy, bob)) top = e.size * 0.5 + 6;
-      else drawSprite(e.sprite, e.x + ox, e.y + oy + bob, 40);
-      if (!e.dummy) drawHpBar(e.x + ox, e.y + oy - top, e.hp, e.maxHp, "#ff6b6b");
-      else drawNameTag(e.name || "かかし", e.x + ox, e.y + oy - top);
+      if (drawWalker(e, ex + ox, ey + oy, bob)) top = e.size * 0.5 + 6;
+      else drawSprite(e.sprite, ex + ox, ey + oy + bob, 40);
+      if (e.behavior === "charge") {
+        if (e.chargeState === "windup") {
+          drawSprite("❗", ex + ox, ey + oy - top - 14, 30); // 「くるぞ！」
+        } else if (e.chargeState === "dizzy") {
+          const a = e.phase * 3;
+          drawSprite("💫", ex + ox + Math.cos(a) * 14, ey + oy - top - 10, 26);
+        }
+      }
+      if (!e.dummy) drawHpBar(ex + ox, ey + oy - top, e.hp, e.maxHp, "#ff6b6b");
+      else drawNameTag(e.name || "かかし", ex + ox, ey + oy - top);
     }
 
     // 弾
@@ -1366,6 +1492,7 @@
         G.player.dirY = y / d;
       },
       hurt: (n) => damagePlayer(n || 1),
+      combo: () => G.player.combo,
     },
   };
 })();
