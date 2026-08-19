@@ -57,6 +57,24 @@
 
 やることリスト → [docs/TASKS.md](docs/TASKS.md) の「PhA キャラ・画像の さしかえ」
 
+## マップの パーツの 絵を ふやすには
+
+木・いわ・いえ などの パーツは `assets/parts/*.png`（背景とうめい）です。
+もとは `tools/asset_*.jpg`（白ぬきの スプライトシート）で、切りだしは 自動です。
+
+```bash
+python tools/build-assets.py          # シート → assets/parts/*.png ＋ js/assets-data.js
+python tools/build-assets.py --scan   # どこに 何が あるか 番ごう入りの 下しらべ画ぞうを 出す
+```
+
+あたらしい シートを 足すときは、`--scan` で ばしょ（x, y, よこ, たて）を しらべて、
+`tools/build-assets.py` の `SHEETS` に 1行 書くだけです。1行の なかみは
+**名まえ・ラベル・なかま・ぶつかる 大きさ・画面での 大きさ・代わりの 絵文字**。
+
+- `r` が `0` の ものは **ぶつからない かざり**（くさ・小石 など）
+- 絵が よみこめない ときは **代わりの 絵文字で 動く**（テストや 絵を消した ときも あそべる）
+- むかしの マップの 絵文字（`"🌳"`）は `js/assets.js` の `ALIAS` で 新しい 絵に つながります
+
 ## ファイルのやくわり
 
 | ファイル | なかみ |
@@ -68,6 +86,10 @@
 | `js/stages/stage2.js` | 2面の おはなし（まだ かり） |
 | `js/maps/stage1.js` | 1面の 地形（マップ作成ツールの 出力） |
 | `js/mapdata.js` | マップの データ形式（ツールと ゲームで きょうよう） |
+| `js/assets-data.js` | マップの パーツ一らん（`tools/build-assets.py` が 作る。手で なおさない） |
+| `js/assets.js` | パーツの 絵を よみこんで かく しくみ |
+| `assets/parts/` | パーツの 絵（透過PNG） |
+| `tools/build-assets.py` | スプライトシート → パーツの 絵 に 切りだす |
 | `tools/map-editor.html` | **🗺️ マップ作成ツール（ブラウザで ひらくだけ）** |
 | `js/engine.js` | ゲームのしくみ（ふつうは さわらない） |
 | `js/main.js` | スタート・あいことば |

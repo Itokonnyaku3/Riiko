@@ -1721,7 +1721,7 @@
     // かざり（ぶつからない）。size を 書くと 大きさを かえられる。
     //   ※木と おなじ 大きさ(44)に すると「通り抜けできる森」が 作れる。
     for (const d of G.decorations) {
-      if (onScreen(d.x, d.y, 40)) drawSprite(d.sprite, d.x + ox, d.y + oy, d.size || 30);
+      if (onScreen(d.x, d.y, 40)) Assets.drawDeco(ctx, d.sprite, d.x + ox, d.y + oy, d.size || 30);
     }
 
     // しょうがいぶつ（かげ＋絵）
@@ -1732,7 +1732,7 @@
       ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#000"; // かげの うすい色を もどす（絵文字が うすくならないように）
-      drawSprite(o.sprite, o.x + ox, o.y + oy, o.r * 1.7);
+      Assets.drawPart(ctx, o.sprite, o.x + ox, o.y + oy, o.r);
     }
 
     for (const c of G.chests) {

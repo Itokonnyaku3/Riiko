@@ -104,6 +104,10 @@ global.window.localStorage = global.localStorage;
 global.window.requestAnimationFrame = global.requestAnimationFrame;
 
 // ---- よみこむ ----
+// パーツの 絵の 一らん（Node には 画像が ないので 絵文字で えがかれる）
+eval(fs.readFileSync(path.join(ROOT, "js/assets-data.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/assets.js"), "utf8"));
+global.Assets = global.window.Assets;
 eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));
 const MapData = global.window.MapData;
@@ -168,13 +172,13 @@ ok("パーツが 一れつに ならぶ", objs > 5, objs + "こ");
 
 // 5) パーツで うめる（しかく）
 tool("part-fill");
-chip("parts", "part", "🧱");
+chip("parts", "part", "rock-d");
 at("pointerdown", 300, 1300);
 at("pointermove", 700, 1600);
 at("pointerup", 700, 1600);
 const objs2 = data().objects.length;
 ok("しかくを パーツで うめられる", objs2 > objs + 10, objs + " → " + objs2);
-ok("えらんだ パーツに なる", data().objects[objs2 - 1].sprite === "🧱");
+ok("えらんだ パーツに なる", data().objects[objs2 - 1].sprite === "rock-d");
 
 // 6) けす
 tool("erase");

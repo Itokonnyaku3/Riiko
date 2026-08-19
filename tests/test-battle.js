@@ -35,6 +35,10 @@ global.localStorage = (function () { const m = {}; return {
   getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => (m[k] = String(v)),
   removeItem: (k) => delete m[k] }; })();
 
+// パーツの 絵の 一らん（Node には 画像が ないので 絵文字で えがかれる）
+eval(fs.readFileSync(path.join(ROOT, "js/assets-data.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/assets.js"), "utf8"));
+global.Assets = global.window.Assets;
 eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 global.MapData = global.window.MapData;
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));

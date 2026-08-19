@@ -15,6 +15,7 @@
   "use strict";
 
   const M = window.MapData;
+  const A = window.Assets;
   const $ = (id) => document.getElementById(id);
   const canvas = $("map");
   const ctx = canvas.getContext("2d");
@@ -41,8 +42,8 @@
     data: null,
     tool: "ground-rect",
     kind: "grass",
-    part: { sprite: "🌳", r: 26 },
-    deco: "🌼",
+    part: { sprite: "tree", r: 26 },
+    deco: "grass-tuft",
     marker: "enemy",
     brushR: 70,
     partR: 26,
@@ -73,7 +74,7 @@
       title: "あたらしい マップ",
       world: { width: 1400, height: 2200, ground: "#5d8a4e" },
       areas: [],
-      fill: { on: true, sprite: "🌳", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] },
+      fill: { on: true, sprite: "tree", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] },
       objects: [],
       decorations: [],
       markers: [],
@@ -175,14 +176,13 @@
   window.addEventListener("resize", onResize);
   if (window.ResizeObserver) new ResizeObserver(onResize).observe(canvas);
 
+  // 絵文字で かく（めじるし・ためし歩きの 人）
   function sprite(s, x, y, size) {
-    // 絵文字にも「ぬり色」の こさが かかる。
-    // かげ（うすい黒）の あとに かくと 半とうめいに なるので、ここで もどす。
-    ctx.fillStyle = "#000";
-    ctx.font = size + "px system-ui, 'Segoe UI Emoji', sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(s, x, y);
+    A.drawEmoji(ctx, s, x, y, size);
+  }
+  // パーツ（絵）を かく
+  function part(s, x, y, r) {
+    A.drawPart(ctx, s, x, y, r);
   }
 
   function render() {
@@ -254,11 +254,12 @@
     } else {
       for (const o of S.fillCache) {
         if (!on(o, 60)) continue;
-        sprite(o.sprite, o.x, o.y, o.r * 1.7);
+        part(o.sprite, o.x, o.y, o.r);
       }
     }
 
-    // 手でおいた パーツ
+    // 手でおいた パーツ（下に ある ものほど 手まえ。ゲームと おなじ ならびかた）
+    d.objects.sort((a, b) => a.y - b.y);
     for (const o of d.objects) {
       if (!on(o, 90)) continue;
       if (simple) {
@@ -271,14 +272,14 @@
         ctx.beginPath();
         ctx.ellipse(o.x, o.y + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
         ctx.fill();
-        sprite(o.sprite, o.x, o.y, o.r * 1.7);
+        part(o.sprite, o.x, o.y, o.r);
       }
     }
 
     // かざり
     if (!simple)
       for (const o of d.decorations) {
-        if (on(o, 40)) sprite(o.sprite, o.x, o.y, 30);
+        if (on(o, 40)) A.drawDeco(ctx, o.sprite, o.x, o.y, 30);
       }
 
     // ぶつかる まる
@@ -334,14 +335,14 @@
         my = S.mouse.y;
       ctx.globalAlpha = 0.55;
       if (S.tool === "part" || S.tool === "part-line" || S.tool === "part-fill") {
-        sprite(S.part.sprite, mx, my, S.partR * 1.7);
+        part(S.part.sprite, mx, my, S.partR);
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 1 / z;
         ctx.beginPath();
         ctx.arc(mx, my, S.partR, 0, Math.PI * 2);
         ctx.stroke();
       } else if (S.tool === "deco") {
-        sprite(S.deco, mx, my, 30);
+        A.drawDeco(ctx, S.deco, mx, my, 30);
       } else if (S.tool === "marker") {
         const def = M.MARKERS.find((t) => t.type === S.marker);
         sprite(def.sprite, mx, my, 32);
@@ -379,7 +380,7 @@
       ctx.arc(x0, y0, rr, 0, Math.PI * 2);
       ctx.fill();
     } else if (dg.tool === "part-line") {
-      for (const p of linePoints(x0, y0, x1, y1, S.space)) sprite(S.part.sprite, p.x, p.y, S.partR * 1.7);
+      for (const p of linePoints(x0, y0, x1, y1, S.space)) part(S.part.sprite, p.x, p.y, S.partR);
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2 / z;
       ctx.beginPath();
@@ -744,7 +745,7 @@
     d.objects = d.objects || [];
     d.decorations = d.decorations || [];
     d.markers = d.markers || [];
-    d.fill = Object.assign({ on: true, sprite: "🌳", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] }, d.fill);
+    d.fill = Object.assign({ on: true, sprite: "tree", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] }, d.fill);
     setData(d);
   }
 
@@ -888,29 +889,75 @@
       kinds.appendChild(b);
     });
 
+    // ---- パーツ（絵の ボタン）----
+    //   絵が ある ものは 絵を、ない ものは 絵文字を そのまま 出す。
+    function chipFace(b, spriteName) {
+      const a = A.def(spriteName);
+      if (a) {
+        const im = document.createElement("img");
+        im.src = A.url(a.id);
+        im.alt = a.label;
+        b.classList.add("img");
+        b.appendChild(im);
+      } else {
+        b.textContent = spriteName;
+      }
+      b.title = A.label(spriteName);
+    }
+
     const parts = $("parts");
+    let lastGroup = null;
     M.PARTS.forEach((p) => {
+      if (p.group !== lastGroup) {
+        lastGroup = p.group;
+        const h = document.createElement("div");
+        h.className = "grp";
+        h.dataset.group = p.group;
+        h.textContent = (M.PART_GROUPS || {})[p.group] || p.group;
+        parts.appendChild(h);
+      }
       const b = document.createElement("div");
       b.className = "chip";
       b.dataset.part = p.sprite;
-      b.title = p.label;
-      b.textContent = p.sprite;
+      b.dataset.find = p.sprite + " " + p.label;
+      chipFace(b, p.sprite);
       b.onclick = () => {
         S.part = { sprite: p.sprite, r: p.r };
         S.partR = p.r;
         $("f-partr").value = p.r;
         if (S.tool.indexOf("part") !== 0) S.tool = "part";
-        markTools();
+        syncForm();
       };
       parts.appendChild(b);
     });
+
+    // ---- さがす（パーツが 多いので）----
+    const find = $("f-partfind");
+    if (find)
+      find.oninput = () => {
+        const q = find.value.trim().toLowerCase();
+        let shownInGroup = 0;
+        let header = null;
+        for (const el of parts.children) {
+          if (el.className === "grp") {
+            if (header) header.classList.toggle("hidden", shownInGroup === 0);
+            header = el;
+            shownInGroup = 0;
+            continue;
+          }
+          const hit = !q || (el.dataset.find || "").toLowerCase().indexOf(q) >= 0;
+          el.classList.toggle("hidden", !hit);
+          if (hit) shownInGroup++;
+        }
+        if (header) header.classList.toggle("hidden", shownInGroup === 0);
+      };
 
     const decos = $("decos");
     M.DECOS.forEach((s) => {
       const b = document.createElement("div");
       b.className = "chip";
       b.dataset.deco = s;
-      b.textContent = s;
+      chipFace(b, s);
       b.onclick = () => {
         S.deco = s;
         S.tool = "deco";
@@ -935,11 +982,11 @@
     });
 
     const fps = $("fillparts");
-    ["🌳", "🌲", "🌴", "🪨", "🧱", "⛰️", "❄️", "🌵", "🚧"].forEach((s) => {
+    (M.FILL_PARTS || []).forEach((s) => {
       const b = document.createElement("div");
       b.className = "chip";
       b.dataset.fillpart = s;
-      b.textContent = s;
+      chipFace(b, s);
       b.onclick = () => {
         snapshot();
         S.data.fill.sprite = s;
@@ -1174,7 +1221,9 @@
         "こみぐあい／ばらつき／みちの ひろさ を うごかすと 森の かんじが かわります。<br><br>" +
         "<b>3. パーツを ならべる</b><br>" +
         "「パーツを おく」＝ドラッグで つづけて おく／「ならべる」＝まっすぐ 1れつ（かべ に べんり）／" +
-        "「うめる」＝しかくい ところ を いっきに うめる。<br><br>" +
+        "「うめる」＝しかくい ところ を いっきに うめる。<br>" +
+        "パーツは 木・いわ・たてもの…と なかま分けして います。多いので " +
+        "<b>さがす まど</b> に「き」「いわ」「いえ」などと 書くと しぼれます。<br><br>" +
         "<b>4. けす</b><br>" +
         "「けす🧽」は パーツ・かざり・めじるし・じどうの 木 を けします（ふとさは [ ] キー）。" +
         "じめんは 「じめんを けす✂️」で けします。<br><br>" +

@@ -17,6 +17,9 @@
  *    fill: { on, sprite, r, gap, jitter, margin, exclude },  // そとがわを うめる（森・かべ）
  *    objects:     [ { x, y, r, sprite } ],     // 手でおいた しょうがいぶつ
  *    decorations: [ { x, y, sprite } ],        // かざり（ぶつからない）
+ *
+ *  sprite は 絵の 名まえ（"tree" など。js/assets-data.js の 一らん）。
+ *  むかしの マップの 絵文字（"🌳"）も そのまま つかえる。
  *    markers:     [ { x, y, type } ],          // めじるし（ゲームでは つかわない メモ）
  *  }
  * =========================================================
@@ -39,31 +42,36 @@
   };
 
   // ---- しょうがいぶつ パーツ（ぶつかる）----
-  const PARTS = [
-    { sprite: "🌳", label: "き",         r: 26 },
-    { sprite: "🌲", label: "もみのき",   r: 26 },
-    { sprite: "🌴", label: "やしのき",   r: 26 },
-    { sprite: "🪨", label: "いわ",       r: 24 },
-    { sprite: "🧱", label: "れんが かべ", r: 18 },
-    { sprite: "🚧", label: "さく",       r: 20 },
-    { sprite: "🪵", label: "まるた",     r: 20 },
-    { sprite: "🌵", label: "サボテン",   r: 20 },
-    { sprite: "⛰️", label: "やま",       r: 40 },
-    { sprite: "🏰", label: "しろ",       r: 60 },
-    { sprite: "🗼", label: "とう",       r: 30 },
-    { sprite: "🏠", label: "いえ",       r: 40 },
-    { sprite: "🛖", label: "こや",       r: 34 },
-    { sprite: "⛲", label: "ふんすい",   r: 34 },
-    { sprite: "🗿", label: "せきぞう",   r: 24 },
-    { sprite: "🛢️", label: "たる",       r: 18 },
-    { sprite: "📦", label: "はこ",       r: 18 },
-    { sprite: "🕯️", label: "ろうそく",   r: 12 },
-    { sprite: "❄️", label: "こおり",     r: 22 },
-    { sprite: "🔥", label: "ほのお",     r: 18 },
+  //   中みは js/assets-data.js（tools/build-assets.py が つくる 絵の 一らん）。
+  //   絵が ない ときの ため、さいごに 絵文字の パーツも すこし たしておく。
+  const ASSETS = (typeof window !== "undefined" && window.PartAssets) || { list: [] };
+
+  const PARTS = ASSETS.list
+    .filter((a) => a.r > 0)
+    .map((a) => ({ sprite: a.id, label: a.label, r: a.r, group: a.group }));
+
+  const EXTRA_PARTS = [
+    { sprite: "🌴", label: "やしのき", r: 26, group: "emoji" },
+    { sprite: "🌵", label: "サボテン", r: 20, group: "emoji" },
+    { sprite: "🗼", label: "とう",     r: 30, group: "emoji" },
+    { sprite: "❄️", label: "こおり",   r: 22, group: "emoji" },
+    { sprite: "🔥", label: "ほのお",   r: 18, group: "emoji" },
+    { sprite: "🕯️", label: "ろうそく", r: 12, group: "emoji" },
   ];
+  for (const p of EXTRA_PARTS) PARTS.push(p);
 
   // ---- かざり（ぶつからない）----
-  const DECOS = ["🌼", "🌸", "🌷", "🌻", "🍄", "🌿", "☘️", "🍁", "🪻", "💧", "🦋", "🐞", "⭐", "🕸️", "🦴"];
+  const DECOS = ASSETS.list
+    .filter((a) => a.r === 0)
+    .map((a) => a.id)
+    .concat(["🌼", "🌸", "🌷", "🌻", "🍄", "🍁", "🪻", "💧", "🦋", "🐞", "⭐", "🕸️", "🦴"]);
+
+  // パーツの まとまりの 名まえ（マップ作成ツールの 見出しに つかう）
+  const PART_GROUPS = Object.assign({}, ASSETS.groups, { emoji: "絵文字" });
+
+  // まわりを うめる パーツ（森の かべ など）に えらべる もの
+  const FILL_PARTS = ["tree", "tree2", "tree-big", "fir", "fir-big", "fir-tall",
+                      "bush-berry", "rocks", "rock-d", "rock-big", "cliff-wall", "fence", "🌴", "❄️"];
 
   // ---- めじるし（ゲームでは つかわない。scenario.js に 書きうつす ための メモ）----
   const MARKERS = [
@@ -105,7 +113,7 @@
     const r = f.r || 26;
     const jit = f.jitter == null ? 14 : f.jitter;
     const margin = f.margin == null ? 24 : f.margin;
-    const sprite = f.sprite || "🌳";
+    const sprite = f.sprite || "tree";
     const mod = jit * 2 + 1;
     const ex = new Set(f.exclude || []);
     const out = [];
@@ -120,6 +128,8 @@
         out.push({ x: tx, y: ty, r: r, sprite: sprite, fill: true });
       }
     }
+    // 下（手まえ）に ある ものほど あとで かく。木が しぜんに かさなる。
+    out.sort((a, b) => a.y - b.y);
     return out;
   }
 
@@ -136,7 +146,9 @@
         ground: data.world.ground || "#6e9d5c",
         areas: areas,
       },
-      obstacles: buildFill(data).concat((data.objects || []).map((o) => ({ ...o }))),
+      obstacles: buildFill(data)
+        .concat((data.objects || []).map((o) => ({ ...o })))
+        .sort((a, b) => a.y - b.y), // 手まえの ものが 上に かさなる
       decorations: (data.decorations || []).map((d) => ({ ...d })),
       markers: (data.markers || []).map((m) => ({ ...m })),
     };
@@ -145,6 +157,8 @@
   window.MapData = {
     GROUND_KINDS,
     PARTS,
+    PART_GROUPS,
+    FILL_PARTS,
     DECOS,
     MARKERS,
     inArea,

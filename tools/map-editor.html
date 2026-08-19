@@ -45,6 +45,7 @@
 
     <section id="sec-part">
       <h3>パーツ（ぶつかる もの）</h3>
+      <input id="f-partfind" class="find" type="search" placeholder="🔍 なまえで さがす（き・いわ・いえ…）" />
       <div id="parts" class="chips"></div>
       <label class="row">大きさ <input id="f-partr" type="range" min="8" max="70" step="1" /><span id="v-partr"></span></label>
       <label class="row">かんかく <input id="f-space" type="range" min="16" max="140" step="2" /><span id="v-space"></span></label>
@@ -111,6 +112,10 @@
   </div>
 </div>
 
+<!-- パーツの 絵（tools/build-assets.py が つくる）。tools/ の 中なので 1つ 上を 見る -->
+<script>window.PART_ASSET_BASE = "../";</script>
+<script src="../js/assets-data.js"></script>
+<script src="../js/assets.js"></script>
 <script src="../js/mapdata.js"></script>
 <!-- できあがっている マップ（ふえたら ここに ふやす） -->
 <script src="../js/maps/stage1.js"></script>

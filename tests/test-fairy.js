@@ -24,6 +24,10 @@ global.Image = function () { this.complete = false; this.naturalWidth = 0; };
 const store = {};
 global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => (store[k] = String(v)), removeItem: (k) => delete store[k] };
 
+// パーツの 絵の 一らん（Node には 画像が ないので 絵文字で えがかれる）
+eval(fs.readFileSync(path.join(ROOT, "js/assets-data.js"), "utf8"));
+eval(fs.readFileSync(path.join(ROOT, "js/assets.js"), "utf8"));
+global.Assets = global.window.Assets;
 eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 global.MapData = global.window.MapData;
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));
