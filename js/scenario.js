@@ -31,6 +31,60 @@ window.WALKS = {
     left: ["assets/enemy/left1.png", "assets/enemy/left2.png"],
     right: ["assets/enemy/right1.png", "assets/enemy/right2.png"],
   },
+  mii: {
+    down: ["assets/mii/down1.png", "assets/mii/down2.png"],
+    up: ["assets/mii/up1.png", "assets/mii/up2.png"],
+    left: ["assets/mii/left1.png", "assets/mii/left2.png"],
+    right: ["assets/mii/right1.png", "assets/mii/right2.png"],
+  },
+  belle: {
+    down: ["assets/belle/down1.png", "assets/belle/down2.png"],
+    up: ["assets/belle/up1.png", "assets/belle/up2.png"],
+    left: ["assets/belle/left1.png", "assets/belle/left2.png"],
+    right: ["assets/belle/right1.png", "assets/belle/right2.png"],
+  },
+  gil: {
+    down: ["assets/gil/down1.png", "assets/gil/down2.png"],
+    up: ["assets/gil/up1.png", "assets/gil/up2.png"],
+    left: ["assets/gil/left1.png", "assets/gil/left2.png"],
+    right: ["assets/gil/right1.png", "assets/gil/right2.png"],
+  },
+  seera: {
+    down: ["assets/seera/down1.png", "assets/seera/down2.png"],
+    up: ["assets/seera/up1.png", "assets/seera/up2.png"],
+    left: ["assets/seera/left1.png", "assets/seera/left2.png"],
+    right: ["assets/seera/right1.png", "assets/seera/right2.png"],
+  },
+  kagemanto: {
+    down: ["assets/kagemanto/down1.png", "assets/kagemanto/down2.png"],
+    up: ["assets/kagemanto/up1.png", "assets/kagemanto/up2.png"],
+    left: ["assets/kagemanto/left1.png", "assets/kagemanto/left2.png"],
+    right: ["assets/kagemanto/right1.png", "assets/kagemanto/right2.png"],
+  },
+  kakashi: {
+    down: ["assets/kakashi/down1.png", "assets/kakashi/down2.png"],
+    up: ["assets/kakashi/up1.png", "assets/kakashi/up2.png"],
+    left: ["assets/kakashi/left1.png", "assets/kakashi/left2.png"],
+    right: ["assets/kakashi/right1.png", "assets/kakashi/right2.png"],
+  },
+  sumire: {
+    down: ["assets/sumire/down1.png", "assets/sumire/down2.png"],
+    up: ["assets/sumire/up1.png", "assets/sumire/up2.png"],
+    left: ["assets/sumire/left1.png", "assets/sumire/left2.png"],
+    right: ["assets/sumire/right1.png", "assets/sumire/right2.png"],
+  },
+  hou: {
+    down: ["assets/hou/down1.png", "assets/hou/down2.png"],
+    up: ["assets/hou/up1.png", "assets/hou/up2.png"],
+    left: ["assets/hou/left1.png", "assets/hou/left2.png"],
+    right: ["assets/hou/right1.png", "assets/hou/right2.png"],
+  },
+  maou: {
+    down: ["assets/maou/down1.png", "assets/maou/down2.png"],
+    up: ["assets/maou/up1.png", "assets/maou/up2.png"],
+    left: ["assets/maou/left1.png", "assets/maou/left2.png"],
+    right: ["assets/maou/right1.png", "assets/maou/right2.png"],
+  },
 };
 
 // 面の 入れもの（js/stages/◯◯.js が ここに 自分を 入れます）

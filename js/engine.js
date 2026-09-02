@@ -259,7 +259,11 @@
 
     if (st.spawn) {
       const a = { dir: "down", frame: 0, animT: 0, size: 56, ...st.spawn };
-      a.walk = st.spawn.walk ? loadWalk(st.spawn.walk) : null;
+      const walkData =
+        st.spawn.walk ||
+        (st.spawn.walkKey && window.WALKS && window.WALKS[st.spawn.walkKey]) ||
+        (st.spawn.id && st.spawn.id.startsWith("mant") && window.WALKS && window.WALKS.kagemanto);
+      a.walk = walkData ? loadWalk(walkData) : null;
       G.actors.push(a);
     }
     if (st.despawn) {
@@ -347,7 +351,7 @@
   //  ・ヒントを 言う（💡ボタン／こまった とき）
   //  ・ピンチに なると 薬を とりに 飛んで いって もどってくる
   function makeFairy(src, px, py) {
-    return {
+    const f = {
       sprite: src.sprite || "🧚",
       name: src.name || "ベル",
       size: src.size || 34,
@@ -364,6 +368,10 @@
       errand: null, // 薬を とりに 行って いる とちゅう
       lines: src.lines || {},
     };
+    if (window.WALKS && window.WALKS.belle) {
+      initWalker(f, { walk: window.WALKS.belle, size: src.size || 36 }, 36);
+    }
+    return f;
   }
 
   // ベルに しゃべらせる
@@ -463,8 +471,11 @@
       tx = p.x + 34 + Math.sin(f.bob * 0.7) * 10;
       ty = p.y - 46 + Math.sin(f.bob) * 7;
     }
-    f.x += (tx - f.x) * Math.min(1, dt * 4.5);
-    f.y += (ty - f.y) * Math.min(1, dt * 4.5);
+    const fdx = (tx - f.x) * Math.min(1, dt * 4.5);
+    const fdy = (ty - f.y) * Math.min(1, dt * 4.5);
+    f.x += fdx;
+    f.y += fdy;
+    if (f.walk) advanceWalk(f, dt, fdx, fdy);
 
     fairyChatter(dt);
     fairyPotion(dt);
@@ -473,7 +484,10 @@
   function drawFairy(ox, oy) {
     const f = G.fairy;
     if (!f) return;
-    drawSprite(f.sprite, f.x + ox, f.y + oy, f.size);
+    const fBob = Math.sin(f.bob) * 3;
+    if (!drawWalker(f, f.x + ox, f.y + oy + fBob, 0)) {
+      drawSprite(f.sprite, f.x + ox, f.y + oy + fBob, f.size);
+    }
     if (f.sayT > 0) drawBubble(f.say, f.x + ox, f.y + oy - 26);
   }
 
@@ -644,6 +658,9 @@
         dashX: 0,
         dashY: 0,
       };
+      if (e.dummy && window.WALKS && window.WALKS.kakashi) {
+        e.walk = window.WALKS.kakashi;
+      }
       initWalker(ent, e, 58); // あるく絵（walk を 書いた てき だけ）
       return ent;
     });
@@ -654,7 +671,16 @@
     G.chests = (scenario.chests || [])
       .filter(condOk)
       .map((c) => ({ ...c, opened: !!G.opened[c.id] }));
-    G.npcs = (scenario.npcs || []).map((n) => ({ ...n, _inside: false }));
+    G.npcs = (scenario.npcs || []).map((n) => {
+      const npc = { ...n, _inside: false };
+      const walkKey = n.walkKey || n.walk;
+      const walkPaths =
+        (window.WALKS && walkKey && window.WALKS[walkKey]) || (window.WALKS && window.WALKS[n.id]);
+      if (walkPaths) {
+        initWalker(npc, { walk: walkPaths, size: n.size || 48 }, 48);
+      }
+      return npc;
+    });
     G.actors = [];
     // ★仲間1 ピカ：加入フラグが 立って いる ときだけ 出す
     G.fairy =
@@ -750,28 +776,46 @@
   }
 
   // ---- しょうがいぶつ：めりこみを外に押し出す（スライドできる） ----
+  //   ★木の当たり判定はキャラクターの下半身（足元）で判定し、木の上半分はすり抜けられる
   function resolveObstacles(ent, radius) {
+    const footOffset = (ent.size || 44) * 0.28;
+    let fx = ent.x;
+    let fy = ent.y + footOffset;
+    const r = radius || PLAYER_R;
+
     for (const o of G.obstacles) {
-      const dx = ent.x - o.x,
-        dy = ent.y - o.y;
+      const ox = o.x;
+      const oy = o.y + (o.r ? o.r * 0.2 : 0);
+      const or = o.r;
+      const min = or + r;
+
+      const dx = fx - ox;
+      const dy = fy - oy;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const min = o.r + radius;
       if (d < min) {
         if (d < 0.001) {
-          ent.x = o.x + min;
+          fx = ox + min;
         } else {
-          ent.x = o.x + (dx / d) * min;
-          ent.y = o.y + (dy / d) * min;
+          fx = ox + (dx / d) * min;
+          fy = oy + (dy / d) * min;
         }
       }
     }
+    ent.x = fx;
+    ent.y = fy - footOffset;
   }
 
   // ---- ざひょうが 障害物と ぶつかっていないか（フェイルセーフ用） ----
   function isSafePosition(x, y, radius) {
     const r = radius || PLAYER_R;
+    const footOffset = 44 * 0.28;
+    const fx = x;
+    const fy = y + footOffset;
     for (const o of G.obstacles) {
-      if (dist(x, y, o.x, o.y) < o.r + r) return false;
+      const ox = o.x;
+      const oy = o.y + (o.r ? o.r * 0.2 : 0);
+      const or = o.r;
+      if (dist(fx, fy, ox, oy) < or + r) return false;
     }
     return true;
   }
@@ -780,11 +824,19 @@
   function steerAround(x, y, dirX, dirY, radius) {
     let ax = dirX,
       ay = dirY;
+    const footOffset = 44 * 0.28;
+    const fx = x;
+    const fy = y + footOffset;
+    const r = radius || PLAYER_R;
+
     for (const o of G.obstacles) {
-      const dx = o.x - x,
-        dy = o.y - y;
+      const ox = o.x;
+      const oy = o.y + (o.r ? o.r * 0.2 : 0);
+      const or = o.r;
+      const dx = ox - fx,
+        dy = oy - fy;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const reach = o.r + radius + 26; // これより近い障害物をよける
+      const reach = or + r + 26; // これより近い障害物をよける
       if (d < reach && d > 0.001) {
         const nx = dx / d,
           ny = dy / d;
@@ -1739,79 +1791,185 @@
       if (onScreen(d.x, d.y, 40)) Assets.drawDeco(ctx, d.sprite, d.x + ox, d.y + oy, d.size || 30);
     }
 
+    // 立体物（木・岩・家・宝箱・扉・NPC・敵・プレイヤー等）：
+    //   ★足元のY座標（baseY）でソートして描画することで、木の後ろに回ると自然に隠れ、
+    //   手前に来ると手前に表示される（2.5D深度ソート）
+    const renderables = [];
+
     // しょうがいぶつ（かげ＋絵）
     for (const o of G.obstacles) {
       if (!onScreen(o.x, o.y, 60)) continue;
-      ctx.fillStyle = "rgba(0,0,0,0.12)";
-      ctx.beginPath();
-      ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#000"; // かげの うすい色を もどす（絵文字が うすくならないように）
-      Assets.drawPart(ctx, o.sprite, o.x + ox, o.y + oy, o.r);
+      renderables.push({
+        baseY: o.y + (o.r ? o.r * 0.55 : 0),
+        draw: () => {
+          ctx.fillStyle = "rgba(0,0,0,0.12)";
+          ctx.beginPath();
+          ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#000"; // かげの うすい色を もどす
+          Assets.drawPart(ctx, o.sprite, o.x + ox, o.y + oy, o.r);
+        },
+      });
     }
 
     for (const c of G.chests) {
-      if (onScreen(c.x, c.y, 40))
-        drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34);
+      if (!onScreen(c.x, c.y, 40)) continue;
+      renderables.push({
+        baseY: c.y + 14,
+        draw: () => drawSprite(c.opened ? "📭" : "🎁", c.x + ox, c.y + oy, 34),
+      });
     }
 
     // とびら
     for (const g of G.gates) {
       if (!onScreen(g.x, g.y, 60)) continue;
-      drawSprite("🚪", g.x + ox, g.y + oy, 42);
-      if (!g.open) drawSprite("🔒", g.x + ox, g.y + oy - 30, 22);
+      renderables.push({
+        baseY: g.y + 18,
+        draw: () => {
+          drawSprite("🚪", g.x + ox, g.y + oy, 42);
+          if (!g.open) drawSprite("🔒", g.x + ox, g.y + oy - 30, 22);
+        },
+      });
     }
 
     // 出口（つぎのステージへ。ボスをたおすと 光る）
     if (G.exit && onScreen(G.exit.x, G.exit.y, 60)) {
-      ctx.globalAlpha = exitReady() ? 1 : 0.4;
-      drawSprite("⛩️", G.exit.x + ox, G.exit.y + oy, 48);
-      ctx.globalAlpha = 1;
-      drawNameTag(G.exit.label || "つぎのステージへ", G.exit.x + ox, G.exit.y + oy - 36);
+      renderables.push({
+        baseY: G.exit.y + 20,
+        draw: () => {
+          ctx.globalAlpha = exitReady() ? 1 : 0.4;
+          drawSprite("⛩️", G.exit.x + ox, G.exit.y + oy, 48);
+          ctx.globalAlpha = 1;
+          drawNameTag(G.exit.label || "つぎのステージへ", G.exit.x + ox, G.exit.y + oy - 36);
+        },
+      });
     }
 
     for (const n of G.npcs) {
       if (!onScreen(n.x, n.y, 40)) continue;
-      drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
-      drawNameTag(n.name, n.x + ox, n.y + oy - 34);
+      renderables.push({
+        baseY: n.y + (n.size ? n.size * 0.44 : 18),
+        draw: () => {
+          if (!drawWalker(n, n.x + ox, n.y + oy, 0)) {
+            drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
+          }
+          drawNameTag(n.name, n.x + ox, n.y + oy - 34);
+        },
+      });
     }
 
     // カットシーンに だけ 出る 人
     for (const a of G.actors) {
       if (!onScreen(a.x, a.y, 60)) continue;
-      if (!drawWalker(a, a.x + ox, a.y + oy, 0)) drawSprite(a.sprite, a.x + ox, a.y + oy, a.size || 44);
-      if (a.name) drawNameTag(a.name, a.x + ox, a.y + oy - (a.size || 44) * 0.6);
+      renderables.push({
+        baseY: a.y + (a.size ? a.size * 0.44 : 20),
+        draw: () => {
+          if (!drawWalker(a, a.x + ox, a.y + oy, 0)) drawSprite(a.sprite, a.x + ox, a.y + oy, a.size || 44);
+          if (a.name) drawNameTag(a.name, a.x + ox, a.y + oy - (a.size || 44) * 0.6);
+        },
+      });
     }
 
     for (const e of G.enemies) {
       if (!e.alive) continue;
-      const bob = Math.sin(e.phase) * 3;
-      // 斬られた しゅんかん 白く 光る
-      if (e.flashT > 0) {
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.beginPath();
-        ctx.arc(e.x + ox, e.y + oy + bob, 24, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // ★突進ネコ：いま 何を して いるか 見て わかるように する
-      let ex = e.x,
-        ey = e.y;
-      if (e.behavior === "charge" && e.chargeState === "windup") {
-        ex += Math.sin(e.phase * 9) * 4; // ぷるぷる ためて いる
-      }
-      let top = 32; // HPバー・なまえを 出す たかさ（頭の うえ）
-      if (drawWalker(e, ex + ox, ey + oy, bob)) top = e.size * 0.5 + 6;
-      else drawSprite(e.sprite, ex + ox, ey + oy + bob, 40);
-      if (e.behavior === "charge") {
-        if (e.chargeState === "windup") {
-          drawSprite("❗", ex + ox, ey + oy - top - 14, 30); // 「くるぞ！」
-        } else if (e.chargeState === "dizzy") {
-          const a = e.phase * 3;
-          drawSprite("💫", ex + ox + Math.cos(a) * 14, ey + oy - top - 10, 26);
+      renderables.push({
+        baseY: e.y + (e.dummy ? 24 : 16),
+        draw: () => {
+          const bob = Math.sin(e.phase) * 3;
+          // 斬られた しゅんかん 白く 光る
+          if (e.flashT > 0) {
+            ctx.fillStyle = "rgba(255,255,255,0.85)";
+            ctx.beginPath();
+            ctx.arc(e.x + ox, e.y + oy + bob, 24, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // ★突進ネコ：いま 何を して いるか 見て わかるように する
+          let ex = e.x,
+            ey = e.y;
+          if (e.behavior === "charge" && e.chargeState === "windup") {
+            ex += Math.sin(e.phase * 9) * 4; // ぷるぷる ためて いる
+          }
+          let top = 32;
+          if (e.dummy && e.walk) {
+            e.frame = e.flashT > 0 ? 1 : 0;
+            if (!drawWalker(e, ex + ox, ey + oy, 0)) drawSprite(e.sprite, ex + ox, ey + oy, 40);
+            top = e.size * 0.5 + 4;
+          } else if (drawWalker(e, ex + ox, ey + oy, bob)) {
+            top = e.size * 0.5 + 6;
+          } else {
+            drawSprite(e.sprite, ex + ox, ey + oy + bob, 40);
+          }
+          if (e.behavior === "charge") {
+            if (e.chargeState === "windup") {
+              drawSprite("❗", ex + ox, ey + oy - top - 14, 30);
+            } else if (e.chargeState === "dizzy") {
+              const a = e.phase * 3;
+              drawSprite("💫", ex + ox + Math.cos(a) * 14, ey + oy - top - 10, 26);
+            }
+          }
+          if (!e.dummy) drawHpBar(ex + ox, ey + oy - top, e.hp, e.maxHp, "#ff6b6b");
+          else drawNameTag(e.name || "かかし", ex + ox, ey + oy - top);
+        },
+      });
+    }
+
+    // あいぼう（いない ときは えがかない）
+    const pt = G.partner;
+    if (pt) {
+      renderables.push({
+        baseY: pt.y + 14,
+        draw: () => {
+          const ptBob = Math.sin(pt.bob) * 2;
+          if (!pt.walk && window.WALKS && window.WALKS.mii) {
+            initWalker(pt, { walk: window.WALKS.mii, size: 36 }, 36);
+          }
+          if (!drawWalker(pt, pt.x + ox, pt.y + oy + ptBob, 0)) {
+            drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
+          }
+          drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
+          if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
+        },
+      });
+    }
+
+    // ---- しゅじんこう（剣を ふる 見た目つき）----
+    const pl = G.player;
+    renderables.push({
+      baseY: pl.y + 20,
+      draw: () => {
+        // 剣：むいている ほうに 弧を えがく
+        if (pl.atkT > 0) {
+          const prog = 1 - pl.atkT / 0.18; // 0→1
+          const base = Math.atan2(pl.dirY, pl.dirX);
+          const a0 = base - 1.0 + prog * 2.0;
+          ctx.strokeStyle = "rgba(255,255,255,0.9)";
+          ctx.lineWidth = 7;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.arc(pl.x + ox, pl.y + oy, SWORD_REACH * 0.8, a0 - 0.5, a0 + 0.5);
+          ctx.stroke();
+          drawSprite(
+            "🗡️",
+            pl.x + ox + Math.cos(a0) * SWORD_REACH * 0.7,
+            pl.y + oy + Math.sin(a0) * SWORD_REACH * 0.7,
+            30
+          );
         }
-      }
-      if (!e.dummy) drawHpBar(ex + ox, ey + oy - top, e.hp, e.maxHp, "#ff6b6b");
-      else drawNameTag(e.name || "かかし", ex + ox, ey + oy - top);
+        // むてき中は ちかちかさせる
+        if (G.downT > 0) ctx.globalAlpha = 0.5;
+        else if (pl.invT > 0) ctx.globalAlpha = Math.sin(pl.invT * 30) > 0 ? 0.35 : 1;
+        // あるく絵。まだ よみこめて いなければ 絵文字で あそべる
+        if (!drawWalker(pl, pl.x + ox, pl.y + oy, 0)) {
+          drawSprite(pl.sprite, pl.x + ox, pl.y + oy, 42);
+        }
+        ctx.globalAlpha = 1;
+      },
+    });
+
+    // ★Y座標（足元）の小さい順（北から南）に描画
+    renderables.sort((a, b) => a.baseY - b.baseY);
+    for (const item of renderables) {
+      item.draw();
     }
 
     // 弾
@@ -1824,44 +1982,6 @@
       ctx.fill();
       ctx.stroke();
     }
-
-    // あいぼう（いない ときは えがかない）
-    const pt = G.partner;
-    if (pt) {
-      const ptBob = Math.sin(pt.bob) * 2;
-      drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
-      drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
-      if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
-    }
-
-    // ---- しゅじんこう（剣を ふる 見た目つき）----
-    const pl = G.player;
-    // 剣：むいている ほうに 弧を えがく
-    if (pl.atkT > 0) {
-      const prog = 1 - pl.atkT / 0.18; // 0→1
-      const base = Math.atan2(pl.dirY, pl.dirX);
-      const a0 = base - 1.0 + prog * 2.0;
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
-      ctx.lineWidth = 7;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.arc(pl.x + ox, pl.y + oy, SWORD_REACH * 0.8, a0 - 0.5, a0 + 0.5);
-      ctx.stroke();
-      drawSprite(
-        "🗡️",
-        pl.x + ox + Math.cos(a0) * SWORD_REACH * 0.7,
-        pl.y + oy + Math.sin(a0) * SWORD_REACH * 0.7,
-        30
-      );
-    }
-    // むてき中は ちかちかさせる
-    if (G.downT > 0) ctx.globalAlpha = 0.5;
-    else if (pl.invT > 0) ctx.globalAlpha = Math.sin(pl.invT * 30) > 0 ? 0.35 : 1;
-    // あるく絵。まだ よみこめて いなければ 絵文字で あそべる
-    if (!drawWalker(pl, pl.x + ox, pl.y + oy, 0)) {
-      drawSprite(pl.sprite, pl.x + ox, pl.y + oy, 42);
-    }
-    ctx.globalAlpha = 1;
 
     drawFairy(ox, oy); // 仲間1 ピカ
     drawGuide(ox, oy); // ヒント3の 光る しるし

@@ -132,8 +132,10 @@ for (let i = 0; i < 30; i++) {
 }
 G._test.press("ArrowUp", false);
 ok("うえに あるける", p.y < y0 - 100, Math.round(y0) + " → " + Math.round(p.y));
-ok("木に めりこまない",
-  !st.obstacles.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < o.r + 18 - 0.5));
+const footY = p.y + (p.size || 44) * 0.28;
+const hit = st.obstacles.find((o) => Math.hypot(o.x - p.x, (o.y + (o.r ? o.r * 0.2 : 0)) - footY) < o.r + 18 - 0.5);
+if (hit) console.log("Hit tree detail:", hit, "p.x=", p.x, "p.y=", p.y, "footY=", footY, "dist=", Math.hypot(hit.x - p.x, (hit.y + hit.r * 0.2) - footY), "needed=", hit.r + 18);
+ok("木に めりこまない", !hit);
 
 // よこは 森の かべで とまる（村の ひろばは x 720〜2080）
 st.player.x = 1400;
