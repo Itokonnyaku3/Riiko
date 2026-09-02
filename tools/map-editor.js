@@ -63,7 +63,35 @@
     walk: null,
     last: 0,
     fitted: false,
+
+    // ---- イベント モード ----
+    mode: "terrain", // "terrain" | "events"
+    evTool: "npc", // いま おく イベントの しゅるい
+    selected: null, // { kind, index } えらんで いる イベント
+    evDrag: null, // ドラッグで 動かして いる イベント
   };
+
+  // ---- イベントの しゅるい 一らん ----
+  //   kind: S.data の どの はいれつ／もの か。single のものは 1面に 1つ だけ。
+  const EVENT_TYPES = [
+    { kind: "start", ic: "👧", label: "スタート", single: true },
+    { kind: "npc", ic: "🧙", label: "NPC" },
+    { kind: "enemy", ic: "😾", label: "てき" },
+    { kind: "chest", ic: "🎁", label: "たからばこ" },
+    { kind: "checkpoint", ic: "🚩", label: "チェックポイント" },
+    { kind: "trigger", ic: "⚡", label: "トリガー" },
+    { kind: "gate", ic: "🚪", label: "とびら" },
+    { kind: "exit", ic: "⛩️", label: "出口", single: true },
+  ];
+  function eventDef(kind) { return EVENT_TYPES.find((t) => t.kind === kind); }
+  const PLURAL = {
+    npc: "npcs", enemy: "enemies", chest: "chests",
+    checkpoint: "checkpoints", trigger: "triggers", gate: "gates",
+  };
+  // その イベントが 入っている はいれつ を とる（start／exit は 単体なので null）
+  function evList(kind) {
+    return PLURAL[kind] ? S.data[PLURAL[kind]] : null;
+  }
 
   // =========================================================
   //  データ
@@ -78,16 +106,43 @@
       objects: [],
       decorations: [],
       markers: [],
+      // ---- イベント（マップ作成ツールの「🎬 イベント」で 作る）----
+      player: null,
+      npcs: [],
+      enemies: [],
+      chests: [],
+      checkpoints: [],
+      triggers: [],
+      gates: [],
+      exit: null,
+      hints: [],
+      intro: null,
     };
+  }
+  // ふるい マップ ファイル（イベントの ぶぶんが ない）を よみこんだ ときの おぎない
+  function fillEventDefaults(d) {
+    d.player = d.player || null;
+    d.npcs = d.npcs || [];
+    d.enemies = d.enemies || [];
+    d.chests = d.chests || [];
+    d.checkpoints = d.checkpoints || [];
+    d.triggers = d.triggers || [];
+    d.gates = d.gates || [];
+    d.exit = d.exit || null;
+    d.hints = d.hints || [];
+    d.intro = d.intro || null;
+    return d;
   }
 
   function setData(d) {
-    S.data = d;
+    S.data = fillEventDefaults(d);
+    closeInspector();
     S.excludeSet = new Set(d.fill.exclude || []);
     S.undo.length = 0;
     S.redo.length = 0;
     rebuildFill();
     syncForm();
+    renderEventPanels();
     fitView();
     save();
   }
@@ -109,10 +164,13 @@
     applyState(S.redo.pop());
   }
   function applyState(json) {
-    S.data = JSON.parse(json);
+    S.data = fillEventDefaults(JSON.parse(json));
+    S.selected = null;
+    closeInspector();
     S.excludeSet = new Set(S.data.fill.exclude || []);
     rebuildFill();
     syncForm();
+    renderEventPanels();
     save();
   }
 
@@ -316,6 +374,7 @@
     ctx.lineWidth = 2 / z;
     ctx.strokeRect(0, 0, d.world.width, d.world.height);
 
+    drawEvents();
     drawPreview();
     drawWalker();
     ctx.restore();
@@ -449,6 +508,7 @@
       S.drag = { tool: "pan", px: ev.clientX, py: ev.clientY };
       return;
     }
+    if (S.mode === "events") { startEventTool(w.x, w.y); return; }
     startTool(w.x, w.y);
   });
 
@@ -459,6 +519,7 @@
     S.mouse.x = w.x;
     S.mouse.y = w.y;
     S.mouse.on = true;
+    if (S.mode === "events" && S.evDrag) { moveEventTool(w.x, w.y); return; }
     const dg = S.drag;
     if (!dg) return;
     if (dg.tool === "pan") {
@@ -473,6 +534,7 @@
 
   canvas.addEventListener("pointerup", (ev) => {
     const w = toWorld(ev.clientX, ev.clientY);
+    if (S.mode === "events") endEventTool();
     if (S.drag && S.drag.tool !== "pan") endTool(w.x, w.y);
     S.drag = null;
   });
@@ -634,6 +696,706 @@
   }
 
   // =========================================================
+  //  イベント モード（てき・NPC・トリガー・ヒント・オープニング）
+  //    ここで あつかう データは js/maps/◯◯.js に そのまま 入り、
+  //    js/mapdata.js の build() を とおって ゲームで つかわれます。
+  // =========================================================
+
+  // ---- なまえの じゅんばん（かぶらない id を つくる）----
+  function nextId(prefix) {
+    const used = new Set();
+    ["npcs", "enemies", "chests", "checkpoints", "triggers", "gates"].forEach((k) =>
+      (S.data[k] || []).forEach((o) => o.id && used.add(o.id))
+    );
+    let n = 1;
+    while (used.has(prefix + n)) n++;
+    return prefix + n;
+  }
+
+  // ---- とびらの かべ（requireKey が そろうまで ふさぐ 障害物）を つくりなおす ----
+  function wallRow(x0, x1, y, r, gap, spr) {
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x += gap) out.push({ x, y, r, sprite: spr });
+    return out;
+  }
+  function regenerateGateWall(g) {
+    const span = g.wallSpan || 88, r = g.wallR || 24, gap = g.wallGap || 18, spr = g.wallSprite || "🧱";
+    g.wall = wallRow(g.x - span, g.x + span, g.y, r, gap, spr);
+  }
+
+  // ---- あたらしい イベントの もとの かたち ----
+  function defaultEvent(kind, x, y) {
+    const p = { x: cx(x), y: cy(y) };
+    if (kind === "npc") return { id: nextId("n"), ...p, sprite: "🧙", name: "だれか", lines: ["ここに セリフを 書く。"] };
+    if (kind === "enemy")
+      return {
+        id: nextId("e"), ...p, sprite: "😾", name: "ネコ", maxHp: 16, attack: 3,
+        behavior: "patrol", speed: 45, patrolRange: 100, remember: true, walk: true,
+      };
+    if (kind === "chest") return { id: nextId("c"), ...p, key: "かぎ", item: "🔑 かぎ", message: "たからばこを あけた！" };
+    if (kind === "checkpoint") return { id: nextId("cp"), ...p, r: 70 };
+    if (kind === "trigger") return { id: nextId("tg"), ...p, r: 70, mutter: "" };
+    if (kind === "gate") {
+      const g = {
+        id: nextId("g"), ...p, r: 44, requireKey: "かぎ", requireCount: 1, hudIcon: "🔑",
+        lockedLines: ["かたく とじている…（{have} / {need}）"], openLines: ["とびらが ひらいた！✨"],
+        wallSpan: 88, wallR: 24, wallGap: 18, wallSprite: "🧱",
+      };
+      regenerateGateWall(g);
+      return g;
+    }
+    if (kind === "exit") return { ...p, r: 50, requireBoss: false, label: "つぎへ", lines: ["つぎの ステージへ！"] };
+    if (kind === "start") return { ...p, sprite: "👧", size: 68, name: "リイコ", maxHp: 3, attack: 5 };
+  }
+
+  // ---- kind の はいれつ（start／exit は 単体なので null）----
+  function getEvent(kind, index) {
+    if (kind === "start") return S.data.player;
+    if (kind === "exit") return S.data.exit;
+    const list = evList(kind);
+    return list ? list[index] : null;
+  }
+
+  // ---- クリックの ちかくに ある イベントを さがす ----
+  function findEventAt(x, y) {
+    const thresh = 24 / S.zoom;
+    let best = null, bd = thresh;
+    const test = (kind, ox, oy, index) => {
+      const d = Math.hypot(ox - x, oy - y);
+      if (d < bd) { bd = d; best = { kind, index }; }
+    };
+    const d = S.data;
+    if (d.player) test("start", d.player.x, d.player.y, -1);
+    if (d.exit) test("exit", d.exit.x, d.exit.y, -1);
+    (d.npcs || []).forEach((o, i) => test("npc", o.x, o.y, i));
+    (d.enemies || []).forEach((o, i) => test("enemy", o.x, o.y, i));
+    (d.chests || []).forEach((o, i) => test("chest", o.x, o.y, i));
+    (d.checkpoints || []).forEach((o, i) => test("checkpoint", o.x, o.y, i));
+    (d.triggers || []).forEach((o, i) => test("trigger", o.x, o.y, i));
+    (d.gates || []).forEach((o, i) => test("gate", o.x, o.y, i));
+    return best;
+  }
+
+  // ---- おく／うごかす ----
+  function startEventTool(x, y) {
+    const hit = findEventAt(x, y);
+    if (hit) {
+      S.evDrag = hit;
+      openInspector(hit.kind, hit.index);
+      return;
+    }
+    const kind = S.evTool;
+    const def = eventDef(kind);
+    snapshot();
+    if (def.single) {
+      const cur = getEvent(kind, -1);
+      if (cur) {
+        cur.x = cx(x);
+        cur.y = cy(y);
+        S.evDrag = { kind, index: -1 };
+      } else {
+        if (kind === "start") S.data.player = defaultEvent(kind, x, y);
+        else S.data.exit = defaultEvent(kind, x, y);
+      }
+      openInspector(kind, -1);
+    } else {
+      const list = evList(kind);
+      list.push(defaultEvent(kind, x, y));
+      S.evDrag = { kind, index: list.length - 1 };
+      openInspector(kind, list.length - 1);
+    }
+    save();
+  }
+  function moveEventTool(x, y) {
+    if (!S.evDrag) return;
+    const ev = getEvent(S.evDrag.kind, S.evDrag.index);
+    if (!ev) return;
+    ev.x = cx(x);
+    ev.y = cy(y);
+    if (S.evDrag.kind === "gate") regenerateGateWall(ev);
+  }
+  function endEventTool() {
+    if (S.evDrag) {
+      save();
+      if (S.selected && S.selected.kind === S.evDrag.kind && S.selected.index === S.evDrag.index) renderInspector();
+    }
+    S.evDrag = null;
+  }
+
+  // ---- イベントの アイコンを かく ----
+  function drawEvents() {
+    if (S.mode !== "events") return;
+    const d = S.data;
+    const on = (o, m) => {
+      const W = canvas.clientWidth, H = canvas.clientHeight, z = S.zoom;
+      return o.x > S.cam.x - m && o.x < S.cam.x + W / z + m && o.y > S.cam.y - m && o.y < S.cam.y + H / z + m;
+    };
+    const isSel = (kind, index) => !!S.selected && S.selected.kind === kind && S.selected.index === index;
+    const drawOne = (kind, o, index) => {
+      if (!on(o, 100)) return;
+      const def = eventDef(kind);
+      const sel = isSel(kind, index);
+      if (o.r) {
+        ctx.strokeStyle = sel ? "rgba(255,230,168,0.9)" : "rgba(120,190,255,0.5)";
+        ctx.lineWidth = (sel ? 2.5 : 1.5) / S.zoom;
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = sel ? "rgba(255,230,168,0.6)" : "rgba(0,0,0,0.4)";
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, 22, 0, Math.PI * 2);
+      ctx.fill();
+      sprite(o.sprite || def.ic, o.x, o.y, 32);
+    };
+    if (d.player) drawOne("start", d.player, -1);
+    if (d.exit) drawOne("exit", d.exit, -1);
+    (d.npcs || []).forEach((o, i) => drawOne("npc", o, i));
+    (d.enemies || []).forEach((o, i) => drawOne("enemy", o, i));
+    (d.chests || []).forEach((o, i) => drawOne("chest", o, i));
+    (d.checkpoints || []).forEach((o, i) => drawOne("checkpoint", o, i));
+    (d.triggers || []).forEach((o, i) => drawOne("trigger", o, i));
+    (d.gates || []).forEach((o, i) => drawOne("gate", o, i));
+    // ヒントの 行き先（うすい 光る まる）
+    (d.hints || []).forEach((h) => {
+      if (!h.point || !on(h.point, 40)) return;
+      ctx.fillStyle = "rgba(255,220,120,0.7)";
+      ctx.beginPath();
+      ctx.arc(h.point.x, h.point.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // =========================================================
+  //  えらんだ イベントの 編集パネル（みぎ）
+  // =========================================================
+  function openInspector(kind, index) {
+    S.selected = { kind, index };
+    $("inspector").classList.remove("hidden");
+    renderInspector();
+  }
+  function closeInspector() {
+    S.selected = null;
+    S.evDrag = null;
+    $("inspector").classList.add("hidden");
+  }
+
+  // ---- ぶひんの ちいさな つくりかた ----
+  function fieldRow(labelText, inputEl) {
+    const row = document.createElement("label");
+    row.appendChild(document.createTextNode(labelText));
+    row.appendChild(inputEl);
+    return row;
+  }
+  function textInput(value, onChange) {
+    const el = document.createElement("input");
+    el.type = "text";
+    el.value = value == null ? "" : value;
+    el.oninput = () => onChange(el.value);
+    return el;
+  }
+  function numberInput(value, onChange, opts) {
+    const el = document.createElement("input");
+    el.type = "number";
+    el.value = value == null ? 0 : value;
+    if (opts && opts.step) el.step = opts.step;
+    el.oninput = () => onChange(+el.value || 0);
+    return el;
+  }
+  function optionalNumberInput(value, onChange, opts) {
+    const el = document.createElement("input");
+    el.type = "number";
+    el.value = value == null ? "" : value;
+    if (opts && opts.step) el.step = opts.step;
+    el.oninput = () => onChange(el.value === "" ? null : +el.value);
+    return el;
+  }
+  function checkboxInput(checked, onChange) {
+    const el = document.createElement("input");
+    el.type = "checkbox";
+    el.checked = !!checked;
+    el.onchange = () => onChange(el.checked);
+    return el;
+  }
+  function selectInput(value, options, onChange) {
+    const el = document.createElement("select");
+    options.forEach((o) => {
+      const op = document.createElement("option");
+      op.value = o.value;
+      op.textContent = o.label;
+      if (o.value === value) op.selected = true;
+      el.appendChild(op);
+    });
+    el.onchange = () => onChange(el.value);
+    return el;
+  }
+  function textareaLines(arr, onChange) {
+    const el = document.createElement("textarea");
+    el.value = (arr || []).join("\n");
+    el.oninput = () => onChange(el.value.split("\n"));
+    return el;
+  }
+  function textareaSingle(value, onChange) {
+    const el = document.createElement("textarea");
+    el.value = value || "";
+    el.oninput = () => onChange(el.value);
+    return el;
+  }
+  function row2(a, b) {
+    const r = document.createElement("div");
+    r.className = "row2";
+    r.appendChild(a);
+    r.appendChild(b);
+    return r;
+  }
+  function checkLabel(text, checked, onChange) {
+    const l = document.createElement("label");
+    l.style.flexDirection = "row";
+    l.style.alignItems = "center";
+    l.style.gap = "6px";
+    l.appendChild(checkboxInput(checked, onChange));
+    l.appendChild(document.createTextNode(text));
+    return l;
+  }
+
+  // ---- variants（じょうけんつきの せりふ）の へんしゅう ----
+  function variantsEditor(container, variants, onChange) {
+    variants.forEach((v, i) => {
+      const box = document.createElement("div");
+      box.className = "box";
+      const head = document.createElement("div");
+      head.className = "box-head";
+      const b = document.createElement("b");
+      b.textContent = "だん " + (i + 1);
+      head.appendChild(b);
+      const btns = document.createElement("span");
+      if (i > 0) {
+        const up = document.createElement("button");
+        up.className = "small"; up.textContent = "↑";
+        up.onclick = () => { const t = variants[i - 1]; variants[i - 1] = variants[i]; variants[i] = t; onChange(); renderInspector(); };
+        btns.appendChild(up);
+      }
+      if (i < variants.length - 1) {
+        const dn = document.createElement("button");
+        dn.className = "small"; dn.textContent = "↓";
+        dn.onclick = () => { const t = variants[i + 1]; variants[i + 1] = variants[i]; variants[i] = t; onChange(); renderInspector(); };
+        btns.appendChild(dn);
+      }
+      const del = document.createElement("button");
+      del.className = "small"; del.textContent = "✕";
+      del.onclick = () => { variants.splice(i, 1); onChange(); renderInspector(); };
+      btns.appendChild(del);
+      head.appendChild(btns);
+      box.appendChild(head);
+      box.appendChild(row2(
+        fieldRow("minTalks（なんかいめから）", optionalNumberInput(v.minTalks, (val) => { if (val == null) delete v.minTalks; else v.minTalks = val; onChange(); })),
+        fieldRow("if（この フラグの ときだけ）", textInput(v.if || "", (val) => { if (val) v.if = val; else delete v.if; onChange(); }))
+      ));
+      box.appendChild(fieldRow("ifNot（この フラグが ない ときだけ）", textInput(v.ifNot || "", (val) => { if (val) v.ifNot = val; else delete v.ifNot; onChange(); })));
+      box.appendChild(textareaLines(v.lines, (arr) => { v.lines = arr; onChange(); }));
+      container.appendChild(box);
+    });
+    const add = document.createElement("button");
+    add.className = "wide"; add.textContent = "＋ だんを ふやす";
+    add.onclick = () => { variants.push({ lines: ["ここに セリフを 書く。"] }); onChange(); renderInspector(); };
+    container.appendChild(add);
+  }
+
+  // ---- カットシーン（コマの れつ）の へんしゅう。トリガーと オープニングで つかいまわす ----
+  function stepKind(step) {
+    if (step.look) return "look";
+    if (step.spawn) return "spawn";
+    if (step.move) return "move";
+    if (step.despawn) return "despawn";
+    if (step.name !== undefined || step.lines) return "say";
+    return "wait";
+  }
+  function defaultStepData(kind) {
+    if (kind === "look") return { look: { x: 0, y: 0 } };
+    if (kind === "spawn") return { spawn: { id: "a1", x: 0, y: 0, sprite: "🧑", size: 50, name: "" } };
+    if (kind === "move") return { move: { id: "a1", x: 0, y: 0, sec: 1 } };
+    if (kind === "despawn") return { despawn: [] };
+    if (kind === "say") return { name: "", lines: [""] };
+    return {};
+  }
+  const STEP_KIND_OPTS = [
+    { value: "look", label: "👀 look（カメラを むける）" },
+    { value: "spawn", label: "✨ spawn（キャラを 出す）" },
+    { value: "move", label: "🚶 move（キャラを うごかす）" },
+    { value: "despawn", label: "💨 despawn（キャラを 消す）" },
+    { value: "say", label: "💬 say（せりふ）" },
+    { value: "wait", label: "⏱ wait/sfx だけ" },
+  ];
+  function cutsceneEditor(container, cutscene, onChange, rerender) {
+    cutscene.steps = cutscene.steps || [];
+    cutscene.steps.forEach((step, i) => {
+      const row = document.createElement("div");
+      row.className = "step-row";
+      const top = document.createElement("div");
+      top.className = "step-top";
+      top.appendChild(selectInput(stepKind(step), STEP_KIND_OPTS, (v) => {
+        const wait = step.wait, sfx = step.sfx;
+        Object.keys(step).forEach((k) => delete step[k]);
+        Object.assign(step, defaultStepData(v));
+        if (wait != null) step.wait = wait;
+        if (sfx != null) step.sfx = sfx;
+        onChange(); rerender();
+      }));
+      if (i > 0) {
+        const up = document.createElement("button");
+        up.className = "small"; up.textContent = "↑";
+        up.onclick = () => { const t = cutscene.steps[i - 1]; cutscene.steps[i - 1] = cutscene.steps[i]; cutscene.steps[i] = t; onChange(); rerender(); };
+        top.appendChild(up);
+      }
+      if (i < cutscene.steps.length - 1) {
+        const dn = document.createElement("button");
+        dn.className = "small"; dn.textContent = "↓";
+        dn.onclick = () => { const t = cutscene.steps[i + 1]; cutscene.steps[i + 1] = cutscene.steps[i]; cutscene.steps[i] = t; onChange(); rerender(); };
+        top.appendChild(dn);
+      }
+      const del = document.createElement("button");
+      del.className = "small"; del.textContent = "✕";
+      del.onclick = () => { cutscene.steps.splice(i, 1); onChange(); rerender(); };
+      top.appendChild(del);
+      row.appendChild(top);
+
+      const kind = stepKind(step);
+      if (kind === "look") {
+        row.appendChild(row2(
+          fieldRow("x", numberInput(step.look.x, (v) => { step.look.x = v; onChange(); })),
+          fieldRow("y", numberInput(step.look.y, (v) => { step.look.y = v; onChange(); }))
+        ));
+      } else if (kind === "spawn") {
+        row.appendChild(fieldRow("id", textInput(step.spawn.id, (v) => { step.spawn.id = v; onChange(); })));
+        row.appendChild(row2(
+          fieldRow("x", numberInput(step.spawn.x, (v) => { step.spawn.x = v; onChange(); })),
+          fieldRow("y", numberInput(step.spawn.y, (v) => { step.spawn.y = v; onChange(); }))
+        ));
+        row.appendChild(row2(
+          fieldRow("絵", textInput(step.spawn.sprite || "", (v) => { step.spawn.sprite = v; onChange(); })),
+          fieldRow("大きさ", numberInput(step.spawn.size || 50, (v) => { step.spawn.size = v; onChange(); }))
+        ));
+        row.appendChild(fieldRow("名前", textInput(step.spawn.name || "", (v) => { step.spawn.name = v; onChange(); })));
+      } else if (kind === "move") {
+        row.appendChild(fieldRow("id", textInput(step.move.id, (v) => { step.move.id = v; onChange(); })));
+        row.appendChild(row2(
+          fieldRow("x", numberInput(step.move.x, (v) => { step.move.x = v; onChange(); })),
+          fieldRow("y", numberInput(step.move.y, (v) => { step.move.y = v; onChange(); }))
+        ));
+        row.appendChild(fieldRow("秒（sec）", numberInput(step.move.sec || 1, (v) => { step.move.sec = v; onChange(); }, { step: 0.1 })));
+        row.appendChild(fieldRow("いっしょに 動かす id（かんまくぎり）", textInput((step.move.with || []).join(","), (v) => {
+          const arr = v.split(",").map((s) => s.trim()).filter(Boolean);
+          if (arr.length) step.move.with = arr; else delete step.move.with;
+          onChange();
+        })));
+      } else if (kind === "despawn") {
+        row.appendChild(fieldRow("消す id（かんまくぎり）", textInput((step.despawn || []).join(","), (v) => {
+          step.despawn = v.split(",").map((s) => s.trim()).filter(Boolean);
+          onChange();
+        })));
+      } else if (kind === "say") {
+        row.appendChild(fieldRow("名前", textInput(step.name || "", (v) => { step.name = v; onChange(); })));
+        row.appendChild(textareaLines(step.lines, (arr) => { step.lines = arr; onChange(); }));
+      }
+      row.appendChild(row2(
+        fieldRow("wait（秒。空で なし）", optionalNumberInput(step.wait, (v) => { if (v == null) delete step.wait; else step.wait = v; onChange(); }, { step: 0.1 })),
+        fieldRow("sfx（空で なし）", textInput(step.sfx || "", (v) => { if (v) step.sfx = v; else delete step.sfx; onChange(); }))
+      ));
+      container.appendChild(row);
+    });
+    const add = document.createElement("button");
+    add.className = "wide"; add.textContent = "＋ コマを ふやす";
+    add.onclick = () => { cutscene.steps.push(defaultStepData("say")); onChange(); rerender(); };
+    container.appendChild(add);
+  }
+
+  // ---- タイプごとの 編集らん ----
+  function renderNpcFields(add, ev) {
+    add(fieldRow("名前", textInput(ev.name || "", (v) => { ev.name = v; save(); })));
+    add(fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })));
+    add(fieldRow("話しかける きょり（r。空で 30）", optionalNumberInput(ev.r, (v) => { if (v == null) delete ev.r; else ev.r = v; save(); })));
+    add(row2(
+      fieldRow("set（話すと 立つ フラグ）", textInput(ev.set || "", (v) => { if (v) ev.set = v; else delete ev.set; save(); })),
+      fieldRow("if（この フラグの ときだけ）", textInput(ev.if || "", (v) => { if (v) ev.if = v; else delete ev.if; save(); }))
+    ));
+    add(fieldRow("ifNot（この フラグが ない ときだけ）", textInput(ev.ifNot || "", (v) => { if (v) ev.ifNot = v; else delete ev.ifNot; save(); })));
+
+    const box = document.createElement("div");
+    box.className = "box";
+    const head = document.createElement("div");
+    head.className = "box-head";
+    head.appendChild(Object.assign(document.createElement("b"), { textContent: "せりふ" }));
+    const toggle = document.createElement("button");
+    toggle.className = "small";
+    toggle.textContent = ev.variants ? "単純な せりふに もどす" : "段階分け(variants)に する";
+    toggle.onclick = () => {
+      if (ev.variants) { ev.lines = ev.variants[ev.variants.length - 1].lines.slice(); delete ev.variants; }
+      else { ev.variants = [{ lines: (ev.lines || ["ここに セリフを 書く。"]).slice() }]; delete ev.lines; }
+      save(); renderInspector();
+    };
+    head.appendChild(toggle);
+    box.appendChild(head);
+    if (ev.variants) variantsEditor(box, ev.variants, () => save());
+    else box.appendChild(textareaLines(ev.lines, (arr) => { ev.lines = arr; save(); }));
+    add(box);
+  }
+
+  const BEHAVIOR_OPTS = [
+    { value: "dummy", label: "dummy（動かない・かかし）" },
+    { value: "patrol", label: "patrol（うろうろ）" },
+    { value: "chase", label: "chase（追いかける）" },
+    { value: "shooter", label: "shooter（弾を うつ）" },
+    { value: "charge", label: "charge（ためて 突進）" },
+  ];
+  function renderEnemyFields(add, ev) {
+    add(fieldRow("名前", textInput(ev.name || "", (v) => { ev.name = v; save(); })));
+    add(fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })));
+    add(row2(
+      fieldRow("HP", numberInput(ev.maxHp, (v) => { ev.maxHp = v; save(); })),
+      fieldRow("こうげき力", numberInput(ev.attack, (v) => { ev.attack = v; save(); }))
+    ));
+    add(fieldRow("うごきかた（behavior）", selectInput(ev.behavior, BEHAVIOR_OPTS, (v) => { ev.behavior = v; save(); renderInspector(); })));
+    add(row2(
+      checkLabel("たおすと おぼえる（remember）", ev.remember, (v) => { ev.remember = v; save(); }),
+      checkLabel("絵を むきで かえる（walk）", ev.walk !== false, (v) => { ev.walk = v; save(); })
+    ));
+    const bh = ev.behavior;
+    if (bh !== "dummy") {
+      const r = row2(
+        fieldRow("はやさ（speed）", numberInput(ev.speed || 40, (v) => { ev.speed = v; save(); })),
+        bh === "patrol"
+          ? fieldRow("うろうろ はんい（patrolRange）", numberInput(ev.patrolRange || 90, (v) => { ev.patrolRange = v; save(); }))
+          : fieldRow("見える きょり（sight）", numberInput(ev.sight || 200, (v) => { ev.sight = v; save(); }))
+      );
+      add(r);
+    }
+    if (bh === "shooter") {
+      add(row2(
+        fieldRow("うつ 間かく秒（shootInterval）", numberInput(ev.shootInterval || 1.5, (v) => { ev.shootInterval = v; save(); }, { step: 0.1 })),
+        fieldRow("弾の はやさ", numberInput(ev.bulletSpeed || 150, (v) => { ev.bulletSpeed = v; save(); }))
+      ));
+      add(fieldRow("弾の ダメージ", numberInput(ev.bulletDamage || 2, (v) => { ev.bulletDamage = v; save(); })));
+    }
+    if (bh === "charge") {
+      add(row2(
+        fieldRow("ためる 秒（windupSec）", numberInput(ev.windupSec || 1.2, (v) => { ev.windupSec = v; save(); }, { step: 0.1 })),
+        fieldRow("ねらい わりあい（aimRatio）", numberInput(ev.aimRatio == null ? 0.5 : ev.aimRatio, (v) => { ev.aimRatio = v; save(); }, { step: 0.1 }))
+      ));
+      add(row2(
+        fieldRow("走る 秒（dashSec）", numberInput(ev.dashSec || 0.8, (v) => { ev.dashSec = v; save(); }, { step: 0.05 })),
+        fieldRow("走る はやさ（dashSpeed）", numberInput(ev.dashSpeed || 250, (v) => { ev.dashSpeed = v; save(); }))
+      ));
+      add(row2(
+        fieldRow("目を まわす秒（dizzySec）", numberInput(ev.dizzySec || 1.5, (v) => { ev.dizzySec = v; save(); }, { step: 0.1 })),
+        fieldRow("休む秒（restSec）", numberInput(ev.restSec || 1, (v) => { ev.restSec = v; save(); }, { step: 0.1 }))
+      ));
+    }
+  }
+
+  function renderChestFields(add, ev) {
+    add(fieldRow("かぎ（key。あいことば）", textInput(ev.key || "", (v) => { ev.key = v; save(); })));
+    add(fieldRow("アイテム名（item）", textInput(ev.item || "", (v) => { ev.item = v; save(); })));
+    add(fieldRow("メッセージ", textareaSingle(ev.message, (v) => { ev.message = v; save(); })));
+  }
+  function renderCheckpointFields(add, ev) {
+    add(fieldRow("はんい（r）", numberInput(ev.r || 70, (v) => { ev.r = v; save(); })));
+  }
+  function renderTriggerFields(add, ev) {
+    add(fieldRow("はんい（r）", numberInput(ev.r || 70, (v) => { ev.r = v; save(); })));
+    add(fieldRow("mutter（小さく でる ひとこと）", textInput(ev.mutter || "", (v) => { if (v) ev.mutter = v; else delete ev.mutter; save(); })));
+    add(row2(
+      fieldRow("praise（ほめる。任意）", textInput(ev.praise || "", (v) => { if (v) ev.praise = v; else delete ev.praise; save(); })),
+      fieldRow("sfx（音。任意）", textInput(ev.sfx || "", (v) => { if (v) ev.sfx = v; else delete ev.sfx; save(); }))
+    ));
+    add(row2(
+      fieldRow("set（通ると 立つ フラグ）", textInput(ev.set || "", (v) => { if (v) ev.set = v; else delete ev.set; save(); })),
+      fieldRow("ifNot（この フラグが ない ときだけ）", textInput(ev.ifNot || "", (v) => { if (v) ev.ifNot = v; else delete ev.ifNot; save(); }))
+    ));
+    add(fieldRow("if（この フラグの ときだけ）", textInput(ev.if || "", (v) => { if (v) ev.if = v; else delete ev.if; save(); })));
+
+    const box = document.createElement("div");
+    box.className = "box";
+    const head = document.createElement("div");
+    head.className = "box-head";
+    head.appendChild(Object.assign(document.createElement("b"), { textContent: "カットシーン" }));
+    const toggle = document.createElement("button");
+    toggle.className = "small";
+    toggle.textContent = ev.cutscene ? "カットシーンを けす" : "カットシーンを つける";
+    toggle.onclick = () => {
+      if (ev.cutscene) { if (!confirm("カットシーンを けしますか？")) return; delete ev.cutscene; }
+      else ev.cutscene = { steps: [] };
+      save(); renderInspector();
+    };
+    head.appendChild(toggle);
+    box.appendChild(head);
+    if (ev.cutscene) cutsceneEditor(box, ev.cutscene, () => save(), renderInspector);
+    add(box);
+  }
+  function renderGateFields(add, ev) {
+    add(fieldRow("はんい（r）", numberInput(ev.r || 44, (v) => { ev.r = v; save(); })));
+    add(fieldRow("ひつような かぎ（requireKey）", textInput(ev.requireKey || "", (v) => { ev.requireKey = v; save(); })));
+    add(row2(
+      fieldRow("ひつような かず（requireCount）", numberInput(ev.requireCount || 1, (v) => { ev.requireCount = v; save(); })),
+      fieldRow("HUDの 絵（hudIcon）", textInput(ev.hudIcon || "🔑", (v) => { ev.hudIcon = v; save(); }))
+    ));
+    add(fieldRow("とじている ときの セリフ", textareaLines(ev.lockedLines, (arr) => { ev.lockedLines = arr; save(); })));
+    add(fieldRow("ひらいた ときの セリフ", textareaLines(ev.openLines, (arr) => { ev.openLines = arr; save(); })));
+
+    const box = document.createElement("div");
+    box.className = "box";
+    box.appendChild(Object.assign(document.createElement("b"), { textContent: "かべ（とじて いる あいだ ふさぐ）" }));
+    box.appendChild(row2(
+      fieldRow("はばの はんぶん", numberInput(ev.wallSpan || 88, (v) => { ev.wallSpan = v; regenerateGateWall(ev); save(); })),
+      fieldRow("かんかく", numberInput(ev.wallGap || 18, (v) => { ev.wallGap = v; regenerateGateWall(ev); save(); }))
+    ));
+    box.appendChild(row2(
+      fieldRow("1つの 大きさ", numberInput(ev.wallR || 24, (v) => { ev.wallR = v; regenerateGateWall(ev); save(); })),
+      fieldRow("絵", textInput(ev.wallSprite || "🧱", (v) => { ev.wallSprite = v; regenerateGateWall(ev); save(); }))
+    ));
+    add(box);
+  }
+  function renderExitFields(add, ev) {
+    add(fieldRow("はんい（r）", numberInput(ev.r || 50, (v) => { ev.r = v; save(); })));
+    add(checkLabel("ボスが 必要（requireBoss）", ev.requireBoss, (v) => { ev.requireBoss = v; save(); }));
+    add(fieldRow("ラベル", textInput(ev.label || "", (v) => { ev.label = v; save(); })));
+    add(fieldRow("セリフ", textareaLines(ev.lines, (arr) => { ev.lines = arr; save(); })));
+  }
+  function renderStartFields(add, ev) {
+    add(fieldRow("名前", textInput(ev.name || "リイコ", (v) => { ev.name = v; save(); })));
+    add(fieldRow("絵（sprite）", textInput(ev.sprite || "👧", (v) => { ev.sprite = v; save(); })));
+    add(row2(
+      fieldRow("大きさ（size）", numberInput(ev.size || 68, (v) => { ev.size = v; save(); })),
+      fieldRow("ハート（maxHp）", numberInput(ev.maxHp || 3, (v) => { ev.maxHp = v; save(); }))
+    ));
+    add(fieldRow("こうげき力（attack）", numberInput(ev.attack || 5, (v) => { ev.attack = v; save(); })));
+  }
+
+  function renderInspector() {
+    if (!S.selected) return;
+    const { kind, index } = S.selected;
+    const ev = getEvent(kind, index);
+    if (!ev) { closeInspector(); return; }
+    const def = eventDef(kind);
+    $("insp-title").textContent = def.ic + " " + def.label + (ev.name ? "：" + ev.name : ev.id ? "：" + ev.id : "");
+    const body = $("insp-body");
+    body.innerHTML = "";
+    const add = (el) => body.appendChild(el);
+
+    add(row2(
+      fieldRow("x", numberInput(ev.x, (v) => { ev.x = v; if (kind === "gate") regenerateGateWall(ev); save(); })),
+      fieldRow("y", numberInput(ev.y, (v) => { ev.y = v; if (kind === "gate") regenerateGateWall(ev); save(); }))
+    ));
+
+    if (kind === "npc") renderNpcFields(add, ev);
+    else if (kind === "enemy") renderEnemyFields(add, ev);
+    else if (kind === "chest") renderChestFields(add, ev);
+    else if (kind === "checkpoint") renderCheckpointFields(add, ev);
+    else if (kind === "trigger") renderTriggerFields(add, ev);
+    else if (kind === "gate") renderGateFields(add, ev);
+    else if (kind === "exit") renderExitFields(add, ev);
+    else if (kind === "start") renderStartFields(add, ev);
+  }
+
+  // =========================================================
+  //  ヒント リスト（ひだり バー。うえから じゅんに 出る）
+  // =========================================================
+  function renderHintList() {
+    const list = $("hint-list");
+    if (!list) return;
+    list.innerHTML = "";
+    (S.data.hints || []).forEach((h, i) => {
+      h.point = h.point || { x: Math.round(S.data.world.width / 2), y: Math.round(S.data.world.height / 2) };
+      const row = document.createElement("div");
+      row.className = "hint-row";
+      const head = document.createElement("div");
+      head.style.display = "flex"; head.style.justifyContent = "space-between"; head.style.alignItems = "center";
+      head.appendChild(Object.assign(document.createElement("b"), { textContent: (i + 1) + "ばんめ" }));
+      row.appendChild(head);
+      row.appendChild(row2(
+        fieldRow("ifNot", textInput(h.ifNot || "", (v) => { if (v) h.ifNot = v; else delete h.ifNot; save(); })),
+        fieldRow("if", textInput(h.if || "", (v) => { if (v) h.if = v; else delete h.if; save(); }))
+      ));
+      row.appendChild(textareaLines(h.lines, (arr) => { h.lines = arr; save(); }));
+      row.appendChild(row2(
+        fieldRow("行き先 x", numberInput(h.point.x, (v) => { h.point.x = v; save(); })),
+        fieldRow("行き先 y", numberInput(h.point.y, (v) => { h.point.y = v; save(); }))
+      ));
+      const btns = document.createElement("div");
+      btns.className = "hint-btns";
+      if (i > 0) {
+        const up = document.createElement("button");
+        up.className = "small"; up.textContent = "↑";
+        up.onclick = () => { const t = S.data.hints[i - 1]; S.data.hints[i - 1] = S.data.hints[i]; S.data.hints[i] = t; save(); renderHintList(); };
+        btns.appendChild(up);
+      }
+      if (i < S.data.hints.length - 1) {
+        const dn = document.createElement("button");
+        dn.className = "small"; dn.textContent = "↓";
+        dn.onclick = () => { const t = S.data.hints[i + 1]; S.data.hints[i + 1] = S.data.hints[i]; S.data.hints[i] = t; save(); renderHintList(); };
+        btns.appendChild(dn);
+      }
+      const del = document.createElement("button");
+      del.className = "small"; del.textContent = "🗑";
+      del.onclick = () => { if (!confirm("この ヒントを けしますか？")) return; S.data.hints.splice(i, 1); save(); renderHintList(); };
+      btns.appendChild(del);
+      row.appendChild(btns);
+      list.appendChild(row);
+    });
+  }
+
+  // =========================================================
+  //  オープニング（intro）の へんしゅう ―― モーダルで
+  // =========================================================
+  function openIntroModal() {
+    S.data.intro = S.data.intro || { once: "prologueDone", cutscene: { steps: [] } };
+    richModal("🎬 オープニング（面の さいしょに 1回だけ）", (c) => {
+      c.appendChild(fieldRow("once（この フラグが 立ったら 二度と 出さない）",
+        textInput(S.data.intro.once || "", (v) => { S.data.intro.once = v; save(); })));
+      const box = document.createElement("div");
+      box.className = "box";
+      S.data.intro.cutscene = S.data.intro.cutscene || { steps: [] };
+      cutsceneEditor(box, S.data.intro.cutscene, () => save(), openIntroModal);
+      c.appendChild(box);
+      const clearBtn = document.createElement("button");
+      clearBtn.className = "wide danger";
+      clearBtn.textContent = "オープニングを なくす";
+      clearBtn.onclick = () => {
+        if (!confirm("オープニングを 消しますか？")) return;
+        S.data.intro = null;
+        save();
+        $("modal").classList.add("hidden");
+      };
+      c.appendChild(clearBtn);
+    });
+  }
+
+  // =========================================================
+  //  イベントの ぶひんを ぜんぶ 作りなおす（マップを よみこんだ とき など）
+  //    イベント モードで ない ときは、見えて いないので なにも しない
+  //    （テストの かんたんな DOM でも うごく ように）。
+  // =========================================================
+  function renderEventPanels() {
+    if (S.mode !== "events") return;
+    renderHintList();
+    if (S.selected) renderInspector();
+  }
+
+  // =========================================================
+  //  モード きりかえ（地形 ⇔ イベント）
+  // =========================================================
+  function setMode(mode) {
+    S.mode = mode;
+    document.querySelectorAll("#modebar button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    $("terrain-sections").classList.toggle("hidden", mode !== "terrain");
+    $("sec-events").classList.toggle("hidden", mode !== "events");
+    $("sec-hints").classList.toggle("hidden", mode !== "events");
+    $("sec-intro").classList.toggle("hidden", mode !== "events");
+    if (mode !== "events") closeInspector();
+    else renderHintList();
+    if (S.walk) toggleWalk();
+  }
+
+  // =========================================================
   //  ためしに あるく
   // =========================================================
   function toggleWalk() {
@@ -746,80 +1508,45 @@
     d.decorations = d.decorations || [];
     d.markers = d.markers || [];
     d.fill = Object.assign({ on: true, sprite: "tree", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] }, d.fill);
+    fillEventDefaults(d);
     setData(d);
   }
 
   // めじるしから scenario.js に はりつける コードを 作る
+  // 「🎬 イベント」で 作った データは js/maps/◯◯.js に そのまま はいるので、
+  // ここでは js/stages/◯◯.js に おく「うすい ラッパー」の ひな形だけ 出す。
   function scenarioCode() {
     const d = S.data;
-    const by = (t) => d.markers.filter((m) => m.type === t);
     const L = [];
     L.push("// ---- index.html に この1ぎょうを ふやす ----");
-    L.push('// <script src="js/maps/' + d.name + '.js?v=1"><\\/script>');
+    L.push('// <script src="js/maps/' + d.name + '.js"><\\/script>');
+    L.push('// <script src="js/stages/' + d.name + '.js"><\\/script>');
     L.push("");
-    L.push("// ---- js/scenario.js の いちばん上 ----");
-    L.push('const MAP = MapData.build(window.MAPS["' + d.name + '"]);');
+    L.push("// ---- js/stages/" + d.name + ".js（あたらしい ファイル）----");
+    L.push("(function () {");
+    L.push('  const MAP = MapData.build(window.MAPS["' + d.name + '"]);');
+    L.push("  const PLAYER_WALK = window.WALKS.player;");
+    L.push("  const ENEMY_WALK = window.WALKS.enemy;");
     L.push("");
-    L.push("// ---- SCENARIO の 中身 ----");
-    L.push('  title: "' + (d.title || d.name) + '",');
-    L.push("  world: MAP.world,");
-    L.push("  obstacles: MAP.obstacles,");
-    L.push("  decorations: MAP.decorations,");
-    const st = by("start")[0];
-    L.push(
-      "  player: { x: " + (st ? st.x : 100) + ", y: " + (st ? st.y : 100) + ', sprite: "👧", name: "リイコ" },'
-    );
-    L.push('  partner: { sprite: "🐱", name: "ミィ", maxHp: 30, attack: 4 },');
-
-    L.push("  enemies: [");
-    by("enemy").forEach((m, i) => {
-      L.push(
-        '    { id: "e' + (i + 1) + '", x: ' + m.x + ", y: " + m.y +
-          ', sprite: "😾", name: "ネコ' + (i + 1) + '", maxHp: 16, attack: 3, behavior: "patrol", speed: 45, patrolRange: 110 },'
-      );
-    });
-    by("boss").forEach((m) => {
-      L.push(
-        '    { id: "boss", x: ' + m.x + ", y: " + m.y +
-          ', sprite: "😼", name: "ボス", maxHp: 40, attack: 4, behavior: "shooter", speed: 22, sight: 360, shootInterval: 1.5, bulletSpeed: 150, bulletDamage: 2 },'
-      );
-    });
-    L.push("  ],");
-
-    L.push("  chests: [");
-    by("chest").forEach((m, i) => {
-      L.push(
-        '    { id: "c' + (i + 1) + '", x: ' + m.x + ", y: " + m.y +
-          ', key: "かぎ", item: "🔑 かぎ", message: "たからばこを あけた！" },'
-      );
-    });
-    L.push("  ],");
-
-    L.push("  npcs: [");
-    by("npc").forEach((m, i) => {
-      L.push(
-        '    { id: "n' + (i + 1) + '", x: ' + m.x + ", y: " + m.y +
-          ', sprite: "🧙", name: "だれか", lines: ["ここに セリフを 書く。"] },'
-      );
-    });
-    L.push("  ],");
-
-    L.push("  gates: [");
-    by("gate").forEach((m, i) => {
-      L.push(
-        '    { id: "g' + (i + 1) + '", x: ' + m.x + ", y: " + m.y +
-          ', r: 44, requireKey: "かぎ", requireCount: 3, hudIcon: "🔑",'
-      );
-      L.push("      wall: wallRow(" + (m.x - 88) + ", " + (m.x + 88) + ", " + m.y + ', 24, 18, "🧱"),');
-      L.push('      lockedLines: ["かたく とじている…（{have} / {need}）"], openLines: ["とびらが ひらいた！✨"] },');
-    });
-    L.push("  ],");
-
-    const ex = by("exit")[0];
-    if (ex)
-      L.push(
-        "  exit: { x: " + ex.x + ", y: " + ex.y + ', r: 46, lines: ["つぎの ステージへ！"] },'
-      );
+    L.push('  window.STAGES["' + d.name + '"] = {');
+    L.push('    title: "' + (d.title || d.name) + '",');
+    L.push("    next: null, // つぎの 面の なまえ（さいごの 面なら null）");
+    L.push("    intro: MAP.intro,");
+    L.push("    world: MAP.world,");
+    L.push("    obstacles: MAP.obstacles,");
+    L.push("    decorations: MAP.decorations,");
+    L.push("    player: { ...MAP.player, walk: PLAYER_WALK },");
+    L.push("    partner: null, // 仲間ねこが いる 面だけ { sprite: \"🐱\", name: \"ミィ\", maxHp: 30, attack: 4 }");
+    L.push("    enemies: MAP.enemies.map((e) => { const { walk, ...rest } = e; return walk ? { ...rest, walk: ENEMY_WALK } : rest; }),");
+    L.push("    npcs: MAP.npcs,");
+    L.push("    chests: MAP.chests,");
+    L.push("    checkpoints: MAP.checkpoints,");
+    L.push("    triggers: MAP.triggers,");
+    L.push("    gates: MAP.gates,");
+    L.push("    exit: MAP.exit,");
+    L.push("    hints: MAP.hints,");
+    L.push("  };");
+    L.push("})();");
     return L.join("\n");
   }
 
@@ -829,6 +1556,8 @@
   function modal(title, bodyHTML, text) {
     $("modal-title").textContent = title;
     $("modal-body").innerHTML = bodyHTML || "";
+    $("modal-rich").classList.add("hidden");
+    $("modal-rich").innerHTML = "";
     const ta = $("modal-text");
     if (text == null) {
       ta.classList.add("hidden");
@@ -838,6 +1567,18 @@
       $("modal-copy").classList.remove("hidden");
       ta.value = text;
     }
+    $("modal").classList.remove("hidden");
+  }
+  // すうじ入れなどを その まま おける まど（イベント作成 むけ）
+  function richModal(title, buildFn) {
+    $("modal-title").textContent = title;
+    $("modal-body").innerHTML = "";
+    $("modal-text").classList.add("hidden");
+    $("modal-copy").classList.add("hidden");
+    const rich = $("modal-rich");
+    rich.innerHTML = "";
+    rich.classList.remove("hidden");
+    buildFn(rich);
     $("modal").classList.remove("hidden");
   }
   $("modal-ok").onclick = () => $("modal").classList.add("hidden");
@@ -856,7 +1597,30 @@
   // =========================================================
   //  よこの バー（どうぐ・パレット）を つくる
   // =========================================================
+  const MODES = [
+    { id: "terrain", ic: "🗺️", label: "地形" },
+    { id: "events", ic: "🎬", label: "イベント" },
+  ];
   function buildUI() {
+    const modebar = $("modebar");
+    MODES.forEach((m) => {
+      const b = document.createElement("button");
+      b.innerHTML = '<span class="ic">' + m.ic + "</span>" + m.label;
+      b.dataset.mode = m.id;
+      b.classList.toggle("on", m.id === "terrain");
+      b.onclick = () => setMode(m.id);
+      modebar.appendChild(b);
+    });
+
+    const evTools = $("ev-tools");
+    EVENT_TYPES.forEach((t) => {
+      const b = document.createElement("button");
+      b.innerHTML = '<span class="ic">' + t.ic + "</span>" + t.label;
+      b.dataset.evtool = t.kind;
+      b.onclick = () => { S.evTool = t.kind; markTools(); };
+      evTools.appendChild(b);
+    });
+
     const tools = $("tools");
     TOOLS.forEach((t) => {
       const b = document.createElement("button");
@@ -1009,6 +1773,7 @@
     document
       .querySelectorAll("#fillparts .chip")
       .forEach((b) => b.classList.toggle("on", b.dataset.fillpart === S.data.fill.sprite));
+    document.querySelectorAll("#ev-tools button").forEach((b) => b.classList.toggle("on", b.dataset.evtool === S.evTool));
   }
 
   // ---- すうじの ぶぶんを がめんに あわせる ----
@@ -1047,6 +1812,26 @@
 
   // ---- そうさの ひもづけ ----
   function bind() {
+    $("insp-close").onclick = closeInspector;
+    $("insp-delete").onclick = () => {
+      if (!S.selected) return;
+      if (!confirm("この イベントを けしますか？")) return;
+      snapshot();
+      const { kind, index } = S.selected;
+      if (kind === "start") S.data.player = null;
+      else if (kind === "exit") S.data.exit = null;
+      else evList(kind).splice(index, 1);
+      closeInspector();
+      save();
+    };
+    $("b-hint-add").onclick = () => {
+      snapshot();
+      S.data.hints.push({ lines: [""], point: { x: Math.round(S.data.world.width / 2), y: Math.round(S.data.world.height / 2) } });
+      save();
+      renderHintList();
+    };
+    $("b-intro-edit").onclick = openIntroModal;
+
     $("f-name").oninput = (e) => {
       S.data.name = e.target.value.trim().replace(/\s+/g, "_") || "stage2";
       save();
@@ -1128,18 +1913,21 @@
       download(exportJS(), name);
       modal(
         "💾 ファイルに だしました",
-        "<b>" + name + "</b> を ダウンロードしました。<br>" +
+        "<b>" + name + "</b> を ダウンロードしました（地形と てき・NPC・トリガーなど イベントも ぜんぶ 入って います）。<br>" +
           "1. そのファイルを <code>js/maps/</code> に いれる<br>" +
-          "2. <code>index.html</code> に <code>&lt;script src=\"js/maps/" + name + "\"&gt;&lt;/script&gt;</code> を ふやす<br>" +
-          "3. <code>js/scenario.js</code> で <code>MapData.build(window.MAPS[\"" + S.data.name + "\"])</code> を つかう<br><br>" +
-          "くわしい コードは「📋 シナリオ用コード」ボタンで 出ます。"
+          "2. すでに ある 面なら、それだけで OK（<code>js/stages/" + S.data.name + ".js</code> が 自動で よみこみます）<br>" +
+          "3. あたらしい 面なら、<code>index.html</code> に この2ぎょうを ふやし、" +
+          "「📋 あたらしい 面の コード」ボタンで 出る ひな形を <code>js/stages/" + S.data.name + ".js</code> として おく<br>" +
+          "&nbsp;&nbsp;<code>&lt;script src=\"js/maps/" + name + "\"&gt;&lt;/script&gt;</code><br>" +
+          "&nbsp;&nbsp;<code>&lt;script src=\"js/stages/" + name + "\"&gt;&lt;/script&gt;</code>"
       );
     };
 
     $("b-code").onclick = () => {
       modal(
-        "📋 シナリオ用の コード",
-        "めじるしの ばしょから 作りました。<code>js/scenario.js</code> に はりつけて、なまえや セリフを 書きかえて ください。",
+        "📋 あたらしい 面の コード",
+        "てき・NPC・セリフなどは もう <code>💾 ファイルに だす</code> に ぜんぶ 入って います。" +
+          "これは あたらしい 面を 作った ときに、<code>js/stages/◯◯.js</code> として おく「うすい ラッパー」の ひな形です。",
         scenarioCode()
       );
     };
@@ -1230,9 +2018,15 @@
         "<b>5. たしかめる</b><br>" +
         "「ためしに あるく▶」で WASD／やじるし。とおれない みちが ないか チェック。<br>" +
         "「ぶつかる まる」を 出すと あたり判定が 見えます。<br><br>" +
-        "<b>6. ほぞん</b><br>" +
-        "「ファイルに だす」→ <code>js/maps/</code> に いれる。<br>" +
-        "「シナリオ用コード」→ <code>js/scenario.js</code> に はりつけ。<br><br>" +
+        "<b>6. 🎬 イベント（てき・NPC・トリガー・ヒント・オープニング）</b><br>" +
+        "ひだり うえの「モード」で「🎬 イベント」に すると、地形の うえに" +
+        "てき・NPC・宝箱・チェックポイント・トリガー・とびら・出口・スタート地点を おけます。<br>" +
+        "クリックで あたらしく おき、すでに ある ものを クリックすると 右に 編集パネルが 出ます" +
+        "（そのまま ドラッグで うごかせます）。せりふの 段階分け（variants）や カットシーンも" +
+        "この パネルで 作れます。ヒントは ひだりの リストで、オープニングは「オープニングを 編集」で 作ります。<br><br>" +
+        "<b>7. ほぞん</b><br>" +
+        "「ファイルに だす」→ <code>js/maps/</code> に いれる（地形も イベントも これ 1つに 入ります）。<br>" +
+        "あたらしい 面を 作った ときだけ「📋 あたらしい 面の コード」で <code>js/stages/◯◯.js</code> の ひな形を 出します。<br><br>" +
         "そのほか：マウスホイールで 大きさ／まん中ボタン（か スペース）で うごかす／Ctrl+Z で もどす。" +
         "さぎょうは この パソコンに じどうで ほぞんされます。"
     );
@@ -1259,10 +2053,11 @@
   } catch (e) {
     start = null;
   }
-  S.data = start && start.world ? start : newData();
+  S.data = fillEventDefaults(start && start.world ? start : newData());
   S.excludeSet = new Set(S.data.fill.exclude || []);
   rebuildFill();
   syncForm();
+  renderEventPanels();
   resize();
   fitView();
   requestAnimationFrame(loop);

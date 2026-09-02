@@ -107,37 +107,37 @@ ok("プロローグは 1回だけ", st.flags["prologueDone"] === true);
 ok("プロローグの 人は 消えて いる", st.actors.length === 0);
 
 // ===== 2) フラグ・宝箱・てき を すすめる =====
-st.player.x = 255; st.player.y = 1265; G._test.step(1 / 60); closeDialogue();
+st.player.x = 510; st.player.y = 2530; G._test.step(1 / 60); closeDialogue();
 ok("たからばこを あけた", st.opened["c1"] === true && st.items["メダル"] === 1);
 
 const e1 = st.enemies.filter((e) => e.id === "e1")[0];
 e1.hp = 0;
-e1.x = 600; e1.y = 1500;
-st.player.x = 560; st.player.y = 1500; G._test.face(1, 0); st.player.atkCd = 0;
+e1.x = 1200; e1.y = 3000;
+st.player.x = 1160; st.player.y = 3000; G._test.face(1, 0); st.player.atkCd = 0;
 G._test.swing();
 ok("てきを たおすと おぼえる", st.defeated["e1"] === true, JSON.stringify(st.defeated));
 
 // ===== 3) チェックポイント =====
 //   直前に 斬って いる ので、ヒットストップが おわるまで すこし すすめる
-st.player.x = 700; st.player.y = 1500; run(10);
+st.player.x = 1400; st.player.y = 3000; run(10);
 ok("チェックポイントを 通ると 復帰地点が かわる",
-  Math.abs(st.respawn.y - 1500) < 1, JSON.stringify(st.respawn));
+  Math.abs(st.respawn.y - 3000) < 1, JSON.stringify(st.respawn));
 // やられても そこから
 st.player.invT = 0;
 G._test.hurt(9);
 for (let i = 0; i < 300 && st.downT > 0; i++) G._test.step(1 / 60);
 ok("やられると チェックポイントから 再かいし",
-  Math.abs(st.player.y - 1500) < 1 && st.player.hp === st.player.maxHp,
+  Math.abs(st.player.y - 3000) < 1 && st.player.hp === st.player.maxHp,
   Math.round(st.player.x) + "," + Math.round(st.player.y));
 ok("やられても たからばこ・たおした てきは そのまま",
   st.opened["c1"] === true && st.defeated["e1"] === true);
 
 // ===== 4) トリガーと カットシーン =====
-st.player.x = 700; st.player.y = 1010; G._test.step(1 / 60);
+st.player.x = 1400; st.player.y = 2060; G._test.step(1 / 60);
 ok("抜け道を こえると フラグが 立つ", st.flags["passedSecret"] === true);
 closeDialogue();
 
-st.player.x = 710; st.player.y = 430; G._test.step(1 / 60);
+st.player.x = 1420; st.player.y = 860; G._test.step(1 / 60);
 ok("高台で フラグが 立つ", st.flags["sawCastle"] === true);
 ok("カットシーンが はじまる", !!st.cut && st.paused === true);
 const camBefore = { x: st.cam.x, y: st.cam.y };
@@ -185,7 +185,7 @@ ok("つづきから：たおした てきは 生きかえらない",
   st.enemies.filter((e) => e.id === "e1")[0].alive === false);
 
 // ===== 7) 面の きりかえ =====
-st.player.x = 710; st.player.y = 330;
+st.player.x = 1420; st.player.y = 660;
 G._test.step(1 / 60);
 ok("出口で かいわが 出る", st.paused === true && dialogOpen());
 closeDialogue();
@@ -219,7 +219,7 @@ ok("300びょうで ヒント3＋行き先が 光る", st.hintLv === 3 && !!st.g
   JSON.stringify(st.guide));
 
 // すすむと ヒントの タイマーが もどる
-st.player.x = 700; st.player.y = 1860; run(6); // タロに 会う
+st.player.x = 1400; st.player.y = 3720; run(6); // タロに 会う
 ok("話が すすむと ヒントが もとに もどる", st.hintLv === 0 && st.guide === null);
 ok("タロに 会った フラグ", st.flags["metTaro"] === true);
 

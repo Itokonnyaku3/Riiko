@@ -69,8 +69,8 @@ function hitsToDefeat(id, combo) {
   e.hp = e.maxHp;
   let n = 0;
   while (e.alive && n < 30) {
-    e.x = 600; e.y = 1500; e.knockT = 0; e.attackedT = 9; e.chargeState = "wait";
-    st.player.x = 560; st.player.y = 1500;
+    e.x = 1200; e.y = 3000; e.knockT = 0; e.attackedT = 9; e.chargeState = "wait";
+    st.player.x = 1160; st.player.y = 3000;
     st.player.hp = st.player.maxHp; st.downT = 0; st.player.invT = 5;
     H.face(1, 0);
     st.player.atkCd = 0;
@@ -94,8 +94,8 @@ for (const id of ["e1", "e2", "e3", "e4"]) {
 console.log("\n=== 2) コンボ と ジャスト反げき ===");
 const kk = st.enemies.filter((x) => x.id === "kakashi1")[0];
 function swingAt(target, gap) {
-  target.x = 900; target.y = 2250; target.knockT = 0;
-  st.player.x = 860; st.player.y = 2250;
+  target.x = 1800; target.y = 4500; target.knockT = 0;
+  st.player.x = 1760; st.player.y = 4500;
   H.face(1, 0);
   st.player.atkCd = 0;
   if (gap) { st.player.comboT = 0; st.player.combo = 0; }
@@ -120,8 +120,8 @@ ok("間が あくと コンボが きれる", st.player.combo === 0);
 // ジャスト反げき：てきが こうげきした 直後
 const e1 = st.enemies.filter((x) => x.id === "e1")[0];
 e1.alive = true; e1.hp = e1.maxHp; e1.knockT = 0; e1.chargeState = "wait";
-e1.x = 600; e1.y = 1500;
-st.player.x = 560; st.player.y = 1500; st.player.invT = 5;
+e1.x = 1200; e1.y = 3000;
+st.player.x = 1160; st.player.y = 3000; st.player.invT = 5;
 st.player.comboT = 0; st.player.combo = 0;
 e1.attackedT = 0; // ちょうど いま こうげきした
 st.player.atkCd = 0;
@@ -133,8 +133,8 @@ ok("こうげきの 直後に 斬ると「ナイス！」", justTexts.indexOf("�
 ok("ナイス！は ダメージが 2ばい", justTexts.indexOf("-" + st.player.attack * 2) >= 0, justTexts.join(","));
 
 // 間が あいて いれば ふつう
-e1.hp = e1.maxHp; e1.knockT = 0; e1.x = 600; e1.y = 1500;
-st.player.x = 560; st.player.y = 1500;
+e1.hp = e1.maxHp; e1.knockT = 0; e1.x = 1200; e1.y = 3000;
+st.player.x = 1160; st.player.y = 3000;
 e1.attackedT = 9;
 st.player.comboT = 0; st.player.combo = 0;
 st.player.atkCd = 0;
@@ -147,9 +147,9 @@ console.log("\n=== 3) 突進ネコ（ためる → 走る → 目を まわす�
 const ch = st.enemies.filter((x) => x.id === "e4")[0];
 ok("e4 は 突進ネコ", ch.behavior === "charge");
 ch.alive = true; ch.hp = ch.maxHp; ch.knockT = 0;
-ch.x = 700; ch.y = 900; ch.home.x = 700; ch.home.y = 900;
+ch.x = 1400; ch.y = 1800; ch.home.x = 1400; ch.home.y = 1800;
 ch.chargeState = "wait"; ch.chargeT = 0;
-st.player.x = 700; st.player.y = 1000; st.player.invT = 999; // ダメージは 受けない
+st.player.x = 1400; st.player.y = 2000; st.player.invT = 999; // ダメージは 受けない
 const seen = [];
 for (let i = 0; i < 400; i++) {
   H.step(1 / 60);
@@ -168,9 +168,9 @@ ok("走った あと 目を まわす", seen.indexOf("dizzy") > seen.indexOf("da
 //   （さいごまで ねらいを 追いかける と、どこへ にげても 当たって しまう）
 function dodgeTest(moveDuringWindup) {
   ch.alive = true; ch.hp = ch.maxHp; ch.knockT = 0;
-  ch.x = 700; ch.y = 800; ch.home.x = 700; ch.home.y = 800;
+  ch.x = 1400; ch.y = 1700; ch.home.x = 1400; ch.home.y = 1700;
   ch.chargeState = "wait"; ch.chargeT = 0;
-  st.player.x = 700; st.player.y = 980;
+  st.player.x = 1400; st.player.y = 1880;
   st.player.hp = st.player.maxHp; st.downT = 0;
   let touched = false;
   let dashed = false;
@@ -198,8 +198,8 @@ ok("じっと して いると 当たる（＝ちゃんと ねらって いる�
 // 目を まわして いる あいだは 2ばい
 ch.chargeState = "dizzy"; ch.chargeT = 5;
 ch.hp = ch.maxHp; ch.knockT = 0; ch.attackedT = 9;
-ch.x = 600; ch.y = 1500;
-st.player.x = 560; st.player.y = 1500;
+ch.x = 1200; ch.y = 3000;
+st.player.x = 1160; st.player.y = 3000;
 st.player.comboT = 0; st.player.combo = 0;
 st.player.atkCd = 0;
 st.floaters.length = 0;

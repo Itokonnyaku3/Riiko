@@ -10,6 +10,10 @@
  *      ・灯りを 詩の じゅんに ともす なぞ（色と じゅんばん）
  *      ・弾ネコ／突進ネコ を ふやす
  *      ・かげマントが すがたを 見せて にげる → 3面へ
+ *
+ *  地形・てき・NPC・トリガー・ヒントは js/maps/stage2.js（マップ作成ツール）
+ *  で 作ります。この ファイルは それを 組み立てて、fairy（妖精ピカの
+ *  しくみ）のような この面だけの ぶぶんを 足すだけの うすい ファイルです。
  * =========================================================
  */
 (function () {
@@ -25,16 +29,7 @@
     obstacles: MAP.obstacles,
     decorations: MAP.decorations,
 
-    player: {
-      x: 550,
-      y: 800,
-      sprite: "👧",
-      walk: PLAYER_WALK,
-      size: 68,
-      name: "リイコ",
-      maxHp: 3,
-      attack: 5,
-    },
+    player: { ...MAP.player, walk: PLAYER_WALK },
     partner: null, // ミィが 加わるのは 3面
 
     // ★仲間1 妖精ピカ（pikaJoined の フラグが 立つと ついてくる）
@@ -63,105 +58,17 @@
       },
     },
 
-    hints: [
-      {
-        ifNot: "pikaJoined",
-        lines: [
-          "（谷の おくから、小さな 声が きこえる…）",
-          "（何かが たすけを もとめて いる みたい）",
-          "（谷の おくの クモの巣を 剣で 切って みよう）",
-        ],
-        point: { x: 560, y: 330 },
-      },
-      {
-        lines: ["（もっと 北へ 行って みよう）", "（谷の おくに 道が ある）", "（いちばん 北を めざそう）"],
-        point: { x: 550, y: 170 },
-      },
-    ],
+    hints: MAP.hints,
+    checkpoints: MAP.checkpoints,
 
-    checkpoints: [{ id: "s2cp1", x: 550, y: 500, r: 70 }],
-
-    enemies: [
-      {
-        id: "s2e1",
-        x: 420,
-        y: 470,
-        sprite: "😾",
-        walk: ENEMY_WALK,
-        size: 58,
-        name: "たにの ネコ",
-        remember: true,
-        maxHp: 14,
-        attack: 2,
-        behavior: "patrol",
-        speed: 44,
-        patrolRange: 90,
-      },
-    ],
-    chests: [],
-    gates: [],
-
-    triggers: [
-      // ★クモの巣：近づくと 声が きこえる
-      {
-        id: "s2-web",
-        x: 560,
-        y: 360,
-        r: 70,
-        ifNot: "pikaJoined",
-        mutter: "（だれかの 声…？ クモの巣が ゆれてる）",
-      },
-    ],
-
-    exit: {
-      x: 550,
-      y: 150,
-      r: 50,
-      requireBoss: false,
-      label: "つづく",
-      lines: ["ここから さきは、これから 作ります。", "あそんで くれて ありがとう！🎉"],
-    },
-
-    npcs: [
-      {
-        id: "s2n1",
-        x: 560,
-        y: 330,
-        sprite: "🕸️",
-        name: "クモの す",
-        r: 46,
-        ifNot: "pikaJoined",
-        // 話しかけると 助ける（Ph6 では「剣で 切る」なぞに する）
-        set: "pikaJoined",
-        lines: [
-          "…たすけて…！ だれか いるの？",
-          "（クモの巣に、小さな 光が とらわれて いる）",
-          "リイコは 剣で そっと 巣を 切った。",
-        ],
-      },
-      {
-        id: "s2n2",
-        x: 600,
-        y: 330,
-        sprite: "🧚",
-        name: "ピカ",
-        if: "pikaJoined",
-        r: 40,
-        variants: [
-          {
-            minTalks: 2,
-            lines: ["わたし、ヒントを 出すの とくいなんだ！", "こまったら 💡 を おしてね"],
-          },
-          {
-            lines: [
-              "たすけて くれて ありがとう！ わたし、ピカ！",
-              "リイコ、だっけ。おともだちを さがしてるんだね？",
-              "わたしも いっしょに 行く！ 道は くわしいよ。",
-              "こまったら 💡ボタンを おして。ヒントを 出すから！",
-            ],
-          },
-        ],
-      },
-    ],
+    enemies: MAP.enemies.map((e) => {
+      const { walk, ...rest } = e;
+      return walk ? { ...rest, walk: ENEMY_WALK } : rest;
+    }),
+    chests: MAP.chests,
+    gates: MAP.gates,
+    triggers: MAP.triggers,
+    exit: MAP.exit,
+    npcs: MAP.npcs,
   };
 })();

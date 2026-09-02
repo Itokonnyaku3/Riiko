@@ -33,6 +33,12 @@
   <!-- ===== ひだりの バー（どうぐ） ===== -->
   <aside id="side">
     <section>
+      <h3>モード</h3>
+      <div id="modebar" class="tools"></div>
+    </section>
+
+    <div id="terrain-sections">
+    <section>
       <h3>どうぐ</h3>
       <div id="tools" class="tools"></div>
     </section>
@@ -89,6 +95,23 @@
       </label>
       <button id="b-fit" class="wide">🔍 ぜんたいを 見る</button>
     </section>
+    </div>
+
+    <!-- ===== イベント モード（てき・NPC・トリガーなど）===== -->
+    <section id="sec-events" class="hidden">
+      <h3>イベントを おく</h3>
+      <div id="ev-tools" class="tools"></div>
+      <p class="note">クリックで あたらしく おく。すでに ある ものを クリックすると 右に 編集パネルが 出る（ドラッグで 動かせる）。</p>
+    </section>
+    <section id="sec-hints" class="hidden">
+      <h3>💡 ヒント（うえから じゅんに 出る）</h3>
+      <div id="hint-list"></div>
+      <button id="b-hint-add" class="wide">＋ ヒントを ふやす</button>
+    </section>
+    <section id="sec-intro" class="hidden">
+      <h3>🎬 オープニング（面の さいしょに 1回）</h3>
+      <button id="b-intro-edit" class="wide">オープニングを 編集</button>
+    </section>
   </aside>
 
   <!-- ===== まん中（マップ） ===== -->
@@ -96,6 +119,16 @@
     <canvas id="map"></canvas>
     <div id="status"></div>
     <div id="walkhint" class="hidden">WASD／やじるし で あるく　・　もういちど「ためしに あるく」で おわり</div>
+
+    <!-- ===== みぎの パネル（えらんだ イベントの 編集） ===== -->
+    <aside id="inspector" class="hidden">
+      <div id="insp-head">
+        <span id="insp-title">－</span>
+        <button id="insp-close" title="とじる">✕</button>
+      </div>
+      <div id="insp-body"></div>
+      <button id="insp-delete" class="wide danger">🗑 この イベントを けす</button>
+    </aside>
   </main>
 </div>
 
@@ -104,6 +137,7 @@
   <div class="modal-box">
     <div class="modal-title" id="modal-title"></div>
     <div class="modal-body" id="modal-body"></div>
+    <div id="modal-rich" class="hidden"></div>
     <textarea id="modal-text" spellcheck="false"></textarea>
     <div class="modal-btns">
       <button id="modal-copy">📋 コピー</button>

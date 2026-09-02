@@ -64,7 +64,7 @@ const ok = (n, c, e) => T.push([c ? "✅" : "❌", n, e === undefined ? "" : e])
 
 ok("シナリオが 組み立つ", typeof SCENARIO === "object" && !!SCENARIO.world);
 ok("あいことばは そのまま", GAME_CONFIG.password === "neko");
-ok("木＋いわ＋かべ", SCENARIO.obstacles.length === 705, SCENARIO.obstacles.length + "こ");
+ok("木＋いわ＋かべ", SCENARIO.obstacles.length === 2860, SCENARIO.obstacles.length + "こ");
 ok("じめんの 色わけデータが ある", SCENARIO.world.areas.length === 18 && !!SCENARIO.world.areas[0].color);
 ok("かざり 32こ（抜け道の 木を ふくむ）", SCENARIO.decorations.length === 32);
 ok("てき6（かかし2をふくむ）・たからばこ2・NPC4",
@@ -74,7 +74,7 @@ const G = window.RiikoGame;
 G.start(SCENARIO);
 const st = G._test.state;
 ok("ゲームが はじまる", st.running === true);
-ok("1面に とびらは ない", SCENARIO.gates.length === 0 && st.obstacles.length === 705, st.obstacles.length);
+ok("1面に とびらは ない", SCENARIO.gates.length === 0 && st.obstacles.length === 2860, st.obstacles.length);
 
 // 1フレーム えがく
 drawn.length = 0;
@@ -110,13 +110,13 @@ function closeDialogue() {
 ok("スタート直後は かいわ まどが 出ない", st.paused === false);
 // おばあさんの ところまで あるくと 話しかけてくる
 // すこし はなれて いる あいだは 話しかけて こない（当たり判定を せまく した）
-st.player.x = 545;
-st.player.y = 2120;
+st.player.x = 1045;
+st.player.y = 4240;
 G._test.step(0.016);
 ok("すこし はなれて いれば 話しかけて こない", st.paused === false, "きょり 45");
 // ちかづくと 話しかけてくる
-st.player.x = 512;
-st.player.y = 2122;
+st.player.x = 1012;
+st.player.y = 4242;
 G._test.step(0.016);
 ok("ちかづくと 話しかけてくる", st.paused === true, "きょり 12");
 closeDialogue();
@@ -135,20 +135,20 @@ ok("うえに あるける", p.y < y0 - 100, Math.round(y0) + " → " + Math.rou
 ok("木に めりこまない",
   !st.obstacles.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < o.r + 18 - 0.5));
 
-// よこは 森の かべで とまる（村の ひろばは x 360〜1040）
-st.player.x = 700;
-st.player.y = 2200;
+// よこは 森の かべで とまる（村の ひろばは x 720〜2080）
+st.player.x = 1400;
+st.player.y = 4400;
 G._test.press("ArrowRight", true);
-for (let i = 0; i < 120; i++) {
+for (let i = 0; i < 240; i++) {
   G._test.step(0.05);
   closeDialogue();
 }
 G._test.press("ArrowRight", false);
-ok("森の かべで とまる", p.x < 1120, "x " + Math.round(p.x));
+ok("森の かべで とまる", p.x < 2240, "x " + Math.round(p.x));
 
 // たからばこ：左の 行きどまりの 宝箱
-st.player.x = 258;
-st.player.y = 1268;
+st.player.x = 513;
+st.player.y = 2533;
 G._test.step(0.016);
 ok("たからばこが あく", st.chests[0].opened === true && st.items["メダル"] === 1, JSON.stringify(st.items));
 closeDialogue();

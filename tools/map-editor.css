@@ -47,6 +47,9 @@ button:hover { background: #3a4552; }
 button.primary { background: #3d7d4f; border-color: #4d9a62; }
 button.primary:hover { background: #47905b; }
 button.wide { width: 100%; margin-top: 6px; }
+button.danger { background: #5a3030; border-color: #7a4040; }
+button.danger:hover { background: #6b3838; }
+button.small { padding: 3px 8px; font-size: 12px; }
 
 /* ---- ひだりの バー ---- */
 #side {
@@ -143,6 +146,33 @@ label.row select {
 .modal-body code {
   background: #171b20; padding: 1px 5px; border-radius: 4px; font-size: 12px;
 }
+#modal-rich {
+  display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+  max-height: 60vh; font-size: 12px; color: #cfd9e4;
+}
+#modal-rich label {
+  display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #8fa2b6;
+}
+#modal-rich input[type="text"], #modal-rich input[type="number"], #modal-rich select {
+  background: #171b20; color: #e8edf2; border: 1px solid #3a444f;
+  border-radius: 6px; padding: 5px 7px; font-size: 12px; font-family: inherit; width: 100%;
+}
+#modal-rich textarea {
+  width: 100%; min-height: 60px; background: #171b20; color: #e8edf2;
+  border: 1px solid #3a444f; border-radius: 6px; padding: 6px; font-size: 12px;
+  font-family: inherit; resize: vertical;
+}
+#modal-rich .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#modal-rich .box {
+  border: 1px solid #3a444f; border-radius: 8px; padding: 8px; background: #202730;
+  display: flex; flex-direction: column; gap: 6px;
+}
+#modal-rich .step-row {
+  border: 1px solid #3a444f; border-radius: 8px; padding: 6px; background: #262d36;
+  display: flex; flex-direction: column; gap: 5px;
+}
+#modal-rich .step-row .step-top { display: flex; gap: 4px; align-items: center; }
+#modal-rich .step-row .step-top select { flex: 1; }
 #modal-text {
   width: 100%; height: 260px; background: #12161a; color: #cfe6d2;
   border: 1px solid #3a444f; border-radius: 8px; padding: 8px;
@@ -150,6 +180,59 @@ label.row select {
   white-space: pre; overflow: auto; -webkit-user-select: text; user-select: text;
 }
 .modal-btns { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---- イベント（ひだり バーの おくところ） ---- */
+#hint-list { display: flex; flex-direction: column; gap: 8px; }
+.hint-row {
+  background: #262d36; border: 1px solid #3a444f; border-radius: 8px; padding: 8px;
+  font-size: 12px;
+}
+.hint-row textarea {
+  width: 100%; min-height: 60px; margin-top: 4px;
+  background: #171b20; color: #e8edf2; border: 1px solid #3a444f;
+  border-radius: 6px; padding: 6px; font-size: 12px; font-family: inherit;
+  resize: vertical;
+}
+.hint-row .hint-btns { display: flex; gap: 4px; margin-top: 6px; justify-content: flex-end; }
+
+/* ---- みぎの バー（イベントの 編集パネル） ---- */
+#inspector {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; width: 320px;
+  background: rgba(24, 29, 36, 0.97); border: 1px solid #3d4854; border-radius: 12px;
+  padding: 12px; overflow-y: auto; z-index: 20;
+  box-shadow: 0 6px 24px rgba(0,0,0,.4);
+}
+#insp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+#insp-title { font-weight: 700; font-size: 14px; color: #ffe9a8; }
+#insp-close { padding: 2px 8px; }
+#insp-body { display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #cfd9e4; }
+#insp-body label {
+  display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #8fa2b6;
+}
+#insp-body input[type="text"], #insp-body input[type="number"], #insp-body select {
+  background: #171b20; color: #e8edf2; border: 1px solid #3a444f;
+  border-radius: 6px; padding: 5px 7px; font-size: 12px; font-family: inherit; width: 100%;
+}
+#insp-body input[type="checkbox"] { width: auto; }
+#insp-body textarea {
+  width: 100%; min-height: 70px; background: #171b20; color: #e8edf2;
+  border: 1px solid #3a444f; border-radius: 6px; padding: 6px; font-size: 12px;
+  font-family: inherit; resize: vertical;
+}
+#insp-body .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#insp-body .box {
+  border: 1px solid #3a444f; border-radius: 8px; padding: 8px; background: #202730;
+  display: flex; flex-direction: column; gap: 6px;
+}
+#insp-body .box-head { display: flex; align-items: center; justify-content: space-between; }
+#insp-body .box-head b { font-size: 12px; color: #ffe9a8; }
+#insp-body .step-row {
+  border: 1px solid #3a444f; border-radius: 8px; padding: 6px; background: #262d36;
+  display: flex; flex-direction: column; gap: 5px;
+}
+#insp-body .step-row .step-top { display: flex; gap: 4px; align-items: center; }
+#insp-body .step-row .step-top select { flex: 1; }
+#insp-body hr { border: none; border-top: 1px solid #3a444f; margin: 2px 0; }
 
 @media (max-width: 780px) {
   #app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }

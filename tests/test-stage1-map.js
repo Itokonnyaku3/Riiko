@@ -75,20 +75,20 @@ function flood(free, sx, sy) {
 }
 const at = (seen, x, y) => !!seen[Math.round(x / STEP) * NY + Math.round(y / STEP)];
 
-const START = [700, 2200];
+const START = [1400, 4400];
 const POINTS = {
-  "スタート（村）":        [700, 2200],
-  "きこりの小屋":          [700, 1860],
-  "森の広場":              [700, 1500],
-  "右の寄り道（宝c2）":     [1040, 1500],
-  "三叉路":                [700, 1350],
-  "左の行き止まり（宝c1）": [255, 1265],
-  "右の行き止まり（うさぎ）":[1150, 1265],
-  "岩の手前の広場":         [700, 1210],
-  "★岩の間（抜け道）":      [700, 1100],
-  "森の奥":                [700, 900],
-  "見晴らしの高台":         [710, 460],
-  "出口":                  [710, 330],
+  "スタート（村）":        [1400, 4400],
+  "きこりの小屋":          [1400, 3720],
+  "森の広場":              [1400, 3000],
+  "右の寄り道（宝c2）":     [2080, 3000],
+  "三叉路":                [1400, 2700],
+  "左の行き止まり（宝c1）": [510, 2530],
+  "右の行き止まり（うさぎ）":[2300, 2530],
+  "岩の手前の広場":         [1400, 2420],
+  "★岩の間（抜け道）":      [1400, 2200],
+  "森の奥":                [1400, 1800],
+  "見晴らしの高台":         [1420, 920],
+  "出口":                  [1420, 660],
 };
 
 console.log("=== 1) ふつうに 遊んだとき ===");
@@ -104,11 +104,11 @@ for (const [name, p] of Object.entries(POINTS)) {
 
 console.log("\n=== 2) 行けては いけない ところ ===");
 const forbidden = {
-  "やみのしろ（遠景）":   [700, 160],
-  "しろの手前":          [700, 280],
-  "森の中（左おく）":     [120, 900],
-  "森の中（右おく）":     [1300, 900],
-  "世界の北のはし":       [700, 40],
+  "やみのしろ（遠景）":   [1400, 320],
+  "しろの手前":          [1400, 500],
+  "森の中（左おく）":     [240, 1800],
+  "森の中（右おく）":     [2600, 1800],
+  "世界の北のはし":       [1400, 80],
 };
 for (const [name, p] of Object.entries(forbidden)) {
   const ok = at(f1.seen, p[0], p[1]);
@@ -118,20 +118,20 @@ for (const [name, p] of Object.entries(forbidden)) {
 
 console.log("\n=== 3) 抜け道を ふさぐと 先へ 進めないか（謎が 本物か）===");
 const plug = [];
-for (let y = 1040; y <= 1170; y += 20) plug.push({ x: 700, y: y, r: 46, sprite: "X" });
+for (let y = 2080; y <= 2340; y += 40) plug.push({ x: 1400, y: y, r: 200, sprite: "X" });
 const g2 = buildGrid(plug);
 const f2 = flood(g2, START[0], START[1]);
-const northReach = at(f2.seen, 710, 460);
+const northReach = at(f2.seen, 1420, 920);
 console.log((northReach ? "  NG " : "  OK ") + "抜け道を ふさぐと 高台へ 行けない（＝二つの岩の間が 唯一の 道）");
 if (northReach) fail++;
-const stillFork = at(f2.seen, 700, 1350) && at(f2.seen, 255, 1265) && at(f2.seen, 1150, 1265);
+const stillFork = at(f2.seen, 1400, 2700) && at(f2.seen, 510, 2530) && at(f2.seen, 2300, 2530);
 console.log((stillFork ? "  OK " : "  NG ") + "ふさいでも 三叉路・左右の 行き止まりには 行ける");
 if (!stillFork) fail++;
 
 console.log("\n=== 4) 抜け道の ひろさ ===");
-for (const y of [1190, 1150, 1100, 1050, 1000]) {
+for (const y of [2380, 2300, 2200, 2100, 2000]) {
   let lo = null, hi = null;
-  for (let x = 560; x <= 840; x += 2) {
+  for (let x = 1120; x <= 1680; x += 2) {
     if (at(f1.seen, x, y)) { if (lo === null) lo = x; hi = x; }
   }
   console.log("  y=" + y + " → 通れる はば " + (lo === null ? "なし" : (hi - lo) + "px (x " + lo + "〜" + hi + ")"));

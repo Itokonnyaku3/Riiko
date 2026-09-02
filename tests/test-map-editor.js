@@ -68,6 +68,7 @@ function getEl(id) {
 global.document = {
   getElementById: getEl,
   createElement: (tag) => mkEl(null, tag),
+  createTextNode: (text) => ({ nodeType: 3, textContent: text }),
   querySelectorAll(sel) {
     const m = sel.match(/^#([\w-]+)\s+(.+)$/);
     if (!m) return [];
@@ -246,17 +247,74 @@ ok("ファイルに だせる", !!exported && exported.indexOf("/*MAPDATA*/") > 
 const roundTrip = JSON.parse(exported.slice(exported.indexOf("/*MAPDATA*/") + 11, exported.indexOf("/*ENDMAPDATA*/")));
 ok("だした ものを 読みなおせる", roundTrip.world.width === 1400 && Array.isArray(roundTrip.areas));
 
-// 13) シナリオ用コード
+// 13) シナリオ用コード（うすい ラッパーの ひな形）
 getEl("b-code").click();
 const code = getEl("modal-text").value;
 ok("シナリオ用コードが 出る", code.indexOf("MapData.build") > 0 && code.indexOf("enemies") > 0);
-ok("めじるしが コードに 入る", /x: \d+, y: \d+/.test(code));
+ok("MAP.player や MAP.exit を つかう ひな形に なって いる", code.indexOf("MAP.player") > 0 && code.indexOf("MAP.exit") > 0);
+
+// 13.5) 🎬 イベント モード（てき・NPC・トリガーなど を おく）
+function mode(id) { document.querySelectorAll("#modebar button").find((b) => b.dataset.mode === id).click(); }
+function evtool(id) { document.querySelectorAll("#ev-tools button").find((b) => b.dataset.evtool === id).click(); }
+
+// ズーム／カメラを 元の きじゅんに もどす（あとの at() の ざひょう計算を 合わせる ため）
+getEl("b-fit").click();
+
+mode("events");
+ok("イベント モードに 切りかわる", !getEl("sec-events").classList.contains("hidden") && getEl("terrain-sections").classList.contains("hidden"));
+
+evtool("npc");
+at("pointerdown", 300, 1300);
+at("pointerup", 300, 1300);
+ok("NPCを おける", data().npcs.length === 1, JSON.stringify(data().npcs[0]));
+ok("おいたら 右の パネルが 出る", !getEl("inspector").classList.contains("hidden"));
+
+// おいた ものの ちかくを クリック → あたらしく 作らず えらぶ
+const npcAt = data().npcs[0];
+at("pointerdown", npcAt.x, npcAt.y);
+ok("すでに ある NPCを クリックすると ふえない", data().npcs.length === 1);
+// ドラッグで うごかす
+at("pointermove", npcAt.x + 40, npcAt.y + 20);
+at("pointerup", npcAt.x + 40, npcAt.y + 20);
+ok("ドラッグで うごかせる", Math.abs(data().npcs[0].x - (npcAt.x + 40)) < 2 && Math.abs(data().npcs[0].y - (npcAt.y + 20)) < 2);
+
+evtool("enemy");
+at("pointerdown", 900, 1900);
+at("pointerup", 900, 1900);
+ok("てきを おける（behaviorの きしょち つき）", data().enemies.length === 1 && data().enemies[0].behavior === "patrol");
+
+evtool("exit");
+at("pointerdown", 1000, 1000);
+at("pointerup", 1000, 1000);
+evtool("exit");
+at("pointerdown", 1100, 1100);
+at("pointerup", 1100, 1100);
+ok("出口は 単体（もう1つ おいても ふえない。動くだけ）", !data().exit || (Math.abs(data().exit.x - 1100) < 2));
+
+// けす
+getEl("insp-delete").click();
+ok("イベントを けせる（出口）", data().exit === null || data().exit === undefined);
+
+mode("terrain");
+ok("地形 モードに もどると パネルが とじる", getEl("inspector").classList.contains("hidden"));
+
+// ファイルに だすと イベントも 入って いる
+const exported2 = (function () {
+  let captured = null;
+  const origBlob = global.Blob;
+  global.Blob = function (parts) { captured = parts[0]; };
+  getEl("b-save").click();
+  global.Blob = origBlob;
+  return captured;
+})();
+const roundTrip2 = JSON.parse(exported2.slice(exported2.indexOf("/*MAPDATA*/") + 11, exported2.indexOf("/*ENDMAPDATA*/")));
+ok("だした ファイルに NPC・てきが 入って いる", roundTrip2.npcs.length === 1 && roundTrip2.enemies.length === 1);
 
 // 14) できてる ステージを よみこむ
 getEl("f-maps").value = "stage1";
 getEl("b-loadmap").click();
 ok("stage1 を よみこめる", data().name === "stage1" && data().areas.length === 18);
-ok("stage1 の 木は 661本", MapData.buildFill(data()).length === 661, MapData.buildFill(data()).length);
+ok("stage1 の 木は 2816本", MapData.buildFill(data()).length === 2816, MapData.buildFill(data()).length);
 
 // 15) ためしに あるく（stage1 の スタート地点で）
 tool("walk");
@@ -271,7 +329,7 @@ const girl = () => {
 const key = (type, k) => (winListeners[type] || []).forEach((f) => f({ key: k, target: { tagName: "BODY" } }));
 const g0 = girl();
 ok("ためしに あるく が はじまる", getEl("walkhint").classList.contains("hidden") === false);
-ok("スタート地点に 出る（村）", !!g0 && Math.abs(g0.x - 700) < 5 && Math.abs(g0.y - 2200) < 5,
+ok("スタート地点に 出る（村）", !!g0 && Math.abs(g0.x - 1400) < 5 && Math.abs(g0.y - 4400) < 5,
   g0 ? Math.round(g0.x) + "," + Math.round(g0.y) : "なし");
 
 key("keydown", "d"); // みぎへ
@@ -287,7 +345,7 @@ key("keydown", "s"); // した（森の かべ に むかって）
 for (let i = 0; i < 25; i++) girl();
 key("keyup", "s");
 const g4 = girl();
-ok("村の 南の かべで とまる（すりぬけない）", g4.y < 2360, "y " + Math.round(g4.y));
+ok("村の 南の かべで とまる（すりぬけない）", g4.y < 4720, "y " + Math.round(g4.y));
 ok("木に めりこまない",
   !MapData.buildFill(data()).some((t) => Math.hypot(t.x - g4.x, t.y - g4.y) < t.r + 18 - 0.5));
 

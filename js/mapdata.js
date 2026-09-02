@@ -151,6 +151,22 @@
         .sort((a, b) => a.y - b.y), // 手まえの ものが 上に かさなる
       decorations: (data.decorations || []).map((d) => ({ ...d })),
       markers: (data.markers || []).map((m) => ({ ...m })),
+
+      // ---- ここから イベント（てき・NPC・トリガーなど）----
+      //   マップ作成ツールの「🎬 イベント」で 作った データを そのまま わたす。
+      //   walk（絵の むき）は 絵文字を つかう キャラの ため。しゅじんこう・
+      //   きゃらの 絵じたいは js/scenario.js の window.WALKS に あるので、
+      //   ここでは true/false だけ わたし、面ファイル（js/stages/◯◯.js）が つけかえる。
+      player: data.player ? { ...data.player } : null,
+      enemies: (data.enemies || []).map((e) => ({ ...e })),
+      npcs: (data.npcs || []).map((n) => ({ ...n })),
+      chests: (data.chests || []).map((c) => ({ ...c })),
+      checkpoints: (data.checkpoints || []).map((c) => ({ ...c })),
+      triggers: (data.triggers || []).map((t) => ({ ...t })),
+      gates: (data.gates || []).map((g) => ({ ...g })),
+      exit: data.exit ? { ...data.exit } : null,
+      hints: (data.hints || []).map((h) => ({ ...h })),
+      intro: data.intro ? JSON.parse(JSON.stringify(data.intro)) : null,
     };
   }
 
