@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ゲームキャラクター ドット絵アニメーションプレビュー</title>
+<style>
+  body {
+    background-color: #1a1a2e;
+    color: #ffffff;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px;
+    margin: 0;
+  }
+  h1 {
+    font-size: 24px;
+    margin-bottom: 6px;
+    color: #e94560;
+  }
+  p.sub {
+    font-size: 14px;
+    color: #a0a0c0;
+    margin-top: 0;
+    margin-bottom: 24px;
+  }
+  .section-title {
+    font-size: 16px;
+    color: #ffd166;
+    margin: 20px 0 10px;
+    align-self: flex-start;
+    max-width: 960px;
+    width: 100%;
+  }
+  .stage {
+    width: 960px;
+    background-color: #7ec850;
+    background-image: 
+      radial-gradient(#6eb542 15%, transparent 16%),
+      radial-gradient(#6eb542 15%, transparent 16%);
+    background-size: 32px 32px;
+    background-position: 0 0, 16px 16px;
+    border: 4px solid #16213e;
+    border-radius: 14px;
+    padding: 30px 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    box-sizing: border-box;
+  }
+  .character-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px 30px;
+    justify-content: center;
+    align-items: flex-end;
+  }
+  .sprite-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .sprite-label {
+    background: rgba(0,0,0,0.7);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+  }
+  .sprite {
+    width: 120px;
+    height: 120px;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+  }
+
+  /* ギル */
+  #gil {
+    background-image: url('gil_walk_matching_seera_1787908931152.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.6s steps(1) infinite;
+  }
+
+  /* セーラ */
+  #seera {
+    background-image: url('seera_walk_no_jacket_1787908409932.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.6s steps(1) infinite;
+  }
+
+  /* ベル */
+  #belle {
+    background-image: url('belle_flying_sprites_1787908197771.jpg');
+    background-size: 480px 480px;
+    background-position: 0px 0px;
+    animation: fly-belle 0.4s steps(1) infinite, float-motion 2s ease-in-out infinite alternate;
+  }
+
+  /* 仲間ねこ ミィ */
+  #mii {
+    background-image: url('cat_mii.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.5s steps(1) infinite;
+  }
+
+  /* 敵ネコ */
+  #enemy_cat {
+    background-image: url('enemy_cat.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.6s steps(1) infinite;
+  }
+
+  /* かげマント */
+  #kagemanto {
+    background-image: url('kagemanto.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.7s steps(1) infinite;
+  }
+
+  /* かかし（練習台） */
+  #kakashi {
+    background-image: url('kakashi.jpg');
+    background-size: 240px 120px;
+    animation: hit-kakashi 1.2s steps(1) infinite;
+  }
+
+  /* きこりのタロ */
+  #taro {
+    background-image: url('woodcutter_taro.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.7s steps(1) infinite;
+  }
+
+  /* スミレばあちゃん */
+  #sumire {
+    background-image: url('grandma_sumire.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.8s steps(1) infinite;
+  }
+
+  /* こうさぎのミミ */
+  #mimi {
+    background-image: url('rabbit_mimi.jpg');
+    background-size: 240px 120px;
+    animation: hop-mimi 0.8s steps(1) infinite;
+  }
+
+  /* ふくろうのホゥ */
+  #hou {
+    background-image: url('owl_hou.jpg');
+    background-size: 240px 120px;
+    animation: flap-hou 1s steps(1) infinite, float-motion 3s ease-in-out infinite alternate;
+  }
+
+  /* やみのまおう */
+  #maou {
+    background-image: url('demon_king.jpg');
+    background-size: 240px 120px;
+    animation: walk-2f 0.9s steps(1) infinite;
+  }
+
+  /* 共通2コマ歩行アニメーション */
+  @keyframes walk-2f {
+    0% { background-position: 0px 0px; }
+    50% { background-position: -120px 0px; }
+  }
+
+  /* ベル飛行 */
+  @keyframes fly-belle {
+    0% { background-position: 0px 0px; }
+    50% { background-position: -120px 0px; }
+  }
+  @keyframes float-motion {
+    0% { transform: translateY(0px); }
+    100% { transform: translateY(-12px); }
+  }
+
+  /* かかしヒットアニメーション */
+  @keyframes hit-kakashi {
+    0%, 70% { background-position: 0px 0px; }
+    71%, 100% { background-position: -120px 0px; }
+  }
+
+  /* うさぎホップ */
+  @keyframes hop-mimi {
+    0%, 60% { background-position: 0px 0px; transform: translateY(0px); }
+    61%, 100% { background-position: -120px 0px; transform: translateY(-8px); }
+  }
+
+  /* ふくろう羽ばたき */
+  @keyframes flap-hou {
+    0%, 60% { background-position: 0px 0px; }
+    61%, 100% { background-position: -120px 0px; }
+  }
+
+  .controls {
+    margin-top: 25px;
+    display: flex;
+    gap: 14px;
+  }
+  button {
+    background: #0f3460;
+    color: #fff;
+    border: 2px solid #e94560;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+    transition: all 0.2s;
+  }
+  button:hover {
+    background: #e94560;
+  }
+</style>
+</head>
+<body>
+
+<h1>ゲームキャラクター ドット絵アニメーションプレビュー</h1>
+<p class="sub">3頭身ピクセルアート統一スプライト集（全12体）</p>
+
+<div class="section-title">仲間＆森の重要人物</div>
+<div class="stage">
+  <div class="character-grid">
+    <div class="sprite-box">
+      <div class="sprite-label">情報屋 セーラ（優秀な美人）</div>
+      <div id="seera" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">狩人見習い ギル（元気な少年）</div>
+      <div id="gil" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">仲間1 妖精ベル（小悪魔）</div>
+      <div id="belle" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">仲間2 ねこミィ（相棒）</div>
+      <div id="mii" class="sprite"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">敵キャラクター＆ライバル</div>
+<div class="stage">
+  <div class="character-grid">
+    <div class="sprite-box">
+      <div class="sprite-label">敵ネコ（いたずらネコ）</div>
+      <div id="enemy_cat" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">かげマント（手下）</div>
+      <div id="kagemanto" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">やみのまおう（ラスボス）</div>
+      <div id="maou" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">かかし（剣の練習台）</div>
+      <div id="kakashi" class="sprite"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">村と森のNPC</div>
+<div class="stage">
+  <div class="character-grid">
+    <div class="sprite-box">
+      <div class="sprite-label">スミレばあちゃん</div>
+      <div id="sumire" class="sprite"></div>
+    </div>
+    <div class="sprite-box">
+      <div class="sprite-label">ふくろうのホゥ</div>
+      <div id="hou" class="sprite"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="controls">
+  <button onclick="toggleWalk()">アニメーション 停止 / 再生</button>
+  <button onclick="changeBelleDir()">ベルの向き切替 (下/上/左/右)</button>
+</div>
+
+<script>
+  let isWalking = true;
+  function toggleWalk() {
+    isWalking = !isWalking;
+    const sprites = document.querySelectorAll('.sprite');
+    sprites.forEach(s => {
+      s.style.animationPlayState = isWalking ? 'running' : 'paused';
+    });
+  }
+
+  let belleDir = 0; // 0: Down, 1: Up, 2: Left, 3: Right
+  function changeBelleDir() {
+    belleDir = (belleDir + 1) % 4;
+    const belle = document.getElementById('belle');
+    const yPos = -belleDir * 120;
+    
+    // 動的にキーフレームを設定
+    let styleSheet = document.styleSheets[0];
+    for (let i = 0; i < styleSheet.cssRules.length; i++) {
+      if (styleSheet.cssRules[i].name === 'fly-belle') {
+        styleSheet.deleteRule(i);
+        break;
+      }
+    }
+    styleSheet.insertRule(`
+      @keyframes fly-belle {
+        0% { background-position: 0px ${yPos}px; }
+        50% { background-position: -120px ${yPos}px; }
+      }
+    `, styleSheet.cssRules.length);
+  }
+</script>
+
+</body>
+</html>

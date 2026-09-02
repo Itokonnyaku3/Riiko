@@ -340,7 +340,7 @@
   }
 
   // =========================================================
-  //  仲間1：妖精ピカ（Ph4）
+  //  仲間1：妖精ベル（Ph4）
   // =========================================================
   //  ・しゅじんこうの ななめ上を ふわふわ とぶ
   //  ・かってに しゃべる（おなじ ことばは つづけて 言わない）
@@ -349,7 +349,7 @@
   function makeFairy(src, px, py) {
     return {
       sprite: src.sprite || "🧚",
-      name: src.name || "ピカ",
+      name: src.name || "ベル",
       size: src.size || 34,
       x: px + 30,
       y: py - 40,
@@ -366,7 +366,7 @@
     };
   }
 
-  // ピカに しゃべらせる
+  // ベルに しゃべらせる
   function speakFairy(text, sec) {
     const f = G.fairy;
     if (!f || !text) return;
@@ -418,9 +418,9 @@
       if (f.errand.t <= 0) {
         // もどって きた
         p.hp = Math.min(p.maxHp, p.hp + 1);
-        addFloater(p.x, p.y - 60, "ピカが 薬を くれた！💊", "#9fd");
+        addFloater(p.x, p.y - 60, (f.name || "ベル") + "が 薬を くれた！💊", "#9fd");
         Sfx.play("chest");
-        speakFairy("はい、これ のんで！", 3);
+        speakFairy("ほら、これ のみなさい！", 3);
         f.errand = null;
       }
       return;
@@ -429,7 +429,7 @@
     if (p.hp > 1 || G.downT > 0) return; // ハートが 1つに なったら
     f.potionsLeft -= 1;
     f.errand = { t: 2.4 };
-    speakFairy("あぶない！ 薬 とってくる！", 3);
+    speakFairy("あぶないじゃない！ 薬 とってくるから！", 3);
   }
 
   // 面の とちゅうで 仲間に なった とき、その場で 出てくる（要件C6：うれしい 出来事に する）
@@ -441,9 +441,9 @@
     G.fairy = makeFairy(src, G.player.x, G.player.y);
     const btn = document.getElementById("btn-hint");
     if (btn) btn.classList.remove("hidden");
-    addFloater(G.player.x, G.player.y - 74, (src.name || "ピカ") + "が なかまに なった！✨", "#ffe36b");
+    addFloater(G.player.x, G.player.y - 74, (src.name || "ベル") + "が なかまに なった！✨", "#ffe36b");
     Sfx.play("solved");
-    speakFairy("よろしくね、リイコ！", 4);
+    speakFairy("アタシの案内、感謝しなさいよね！", 4);
     madeProgress();
   }
 
@@ -1025,7 +1025,7 @@
     const msg = G.partner
       ? "ミィが 本気を だした！🔥"
       : G.fairy
-      ? "ピカが おうえん して くれた！✨"
+      ? (G.fairy.name || "ベル") + "が いたずらっぽく おうえんした！✨"
       : "リイコの けんが 光った！⚔️";
     setTimeout(() => {
       addFloater(G.player.x, G.player.y - 60, msg, "#ffe36b");
