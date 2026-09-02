@@ -258,7 +258,7 @@
     if (st.set) G.flags[st.set] = true;
 
     if (st.spawn) {
-      const a = { dir: "down", frame: 0, animT: 0, size: 56, ...st.spawn };
+      const a = { dir: "down", frame: 0, animT: 0, size: 80, ...st.spawn };
       const walkData =
         st.spawn.walk ||
         (st.spawn.walkKey && window.WALKS && window.WALKS[st.spawn.walkKey]) ||
@@ -354,7 +354,7 @@
     const f = {
       sprite: src.sprite || "🧚",
       name: src.name || "ベル",
-      size: src.size || 34,
+      size: src.size || 68,
       x: px + 30,
       y: py - 40,
       bob: 0,
@@ -369,7 +369,7 @@
       lines: src.lines || {},
     };
     if (window.WALKS && window.WALKS.belle) {
-      initWalker(f, { walk: window.WALKS.belle, size: src.size || 36 }, 36);
+      initWalker(f, { walk: window.WALKS.belle, size: src.size || 68 }, 68);
     }
     return f;
   }
@@ -488,7 +488,7 @@
     if (!drawWalker(f, f.x + ox, f.y + oy + fBob, 0)) {
       drawSprite(f.sprite, f.x + ox, f.y + oy + fBob, f.size);
     }
-    if (f.sayT > 0) drawBubble(f.say, f.x + ox, f.y + oy - 26);
+    if (f.sayT > 0) drawBubble(f.say, f.x + ox, f.y + oy - (f.size ? f.size * 0.55 : 36));
   }
 
   // ふきだし（ピカの ひとこと。かいわ まどは 出さない＝止まらない）
@@ -661,7 +661,7 @@
       if (e.dummy && window.WALKS && window.WALKS.kakashi) {
         e.walk = window.WALKS.kakashi;
       }
-      initWalker(ent, e, 58); // あるく絵（walk を 書いた てき だけ）
+      initWalker(ent, e, e.dummy ? 80 : 72); // あるく絵（walk を 書いた てき だけ）
       return ent;
     });
 
@@ -677,7 +677,7 @@
       const walkPaths =
         (window.WALKS && walkKey && window.WALKS[walkKey]) || (window.WALKS && window.WALKS[n.id]);
       if (walkPaths) {
-        initWalker(npc, { walk: walkPaths, size: n.size || 48 }, 48);
+        initWalker(npc, { walk: walkPaths, size: n.size || 76 }, 76);
       }
       return npc;
     });
@@ -1917,17 +1917,17 @@
     const pt = G.partner;
     if (pt) {
       renderables.push({
-        baseY: pt.y + 14,
+        baseY: pt.y + 18,
         draw: () => {
           const ptBob = Math.sin(pt.bob) * 2;
           if (!pt.walk && window.WALKS && window.WALKS.mii) {
-            initWalker(pt, { walk: window.WALKS.mii, size: 36 }, 36);
+            initWalker(pt, { walk: window.WALKS.mii, size: 68 }, 68);
           }
           if (!drawWalker(pt, pt.x + ox, pt.y + oy + ptBob, 0)) {
-            drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 34);
+            drawSprite(pt.sprite, pt.x + ox, pt.y + oy + ptBob, 44);
           }
-          drawHpBar(pt.x + ox, pt.y + oy - 28, pt.hp, pt.maxHp, "#69c56b");
-          if (pt.state === "rest") drawSprite("💤", pt.x + ox + 18, pt.y + oy - 24, 18);
+          drawHpBar(pt.x + ox, pt.y + oy - 42, pt.hp, pt.maxHp, "#69c56b");
+          if (pt.state === "rest") drawSprite("💤", pt.x + ox + 22, pt.y + oy - 38, 20);
         },
       });
     }

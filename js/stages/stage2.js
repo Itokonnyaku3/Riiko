@@ -37,7 +37,7 @@
       if: "pikaJoined",
       sprite: "🧚",
       name: "ベル",
-      size: 34,
+      size: 68,
       potions: 2, // この面で 薬を くれる 回数
       // かってに しゃべる ことば（おなじ ことは つづけて 言わない）
       lines: {

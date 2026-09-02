@@ -793,6 +793,7 @@ window.MAPS["stage1"] = /*MAPDATA*/{
    "y": 4240,
    "sprite": "🧓",
    "walkKey": "sumire",
+   "size": 76,
    "name": "むらの スミレばあちゃん",
    "lines": [
     "リイコ！ ハナちゃんが 黒い マントの やつに さらわれて しまった…！",
@@ -808,6 +809,7 @@ window.MAPS["stage1"] = /*MAPDATA*/{
    "y": 3720,
    "sprite": "👦",
    "walkKey": "gil",
+   "size": 76,
    "name": "狩人見習いの ギル",
    "set": "metTaro",
    "variants": [
@@ -845,6 +847,7 @@ window.MAPS["stage1"] = /*MAPDATA*/{
    "y": 2530,
    "sprite": "👧",
    "walkKey": "seera",
+   "size": 76,
    "name": "情報屋の セーラ",
    "lines": [
     "あら、リイコちゃん。ハナちゃんを さがしているのね？",
@@ -858,6 +861,7 @@ window.MAPS["stage1"] = /*MAPDATA*/{
    "y": 1040,
    "sprite": "🦉",
    "walkKey": "hou",
+   "size": 68,
    "name": "ふくろうの ホゥ",
    "variants": [
     {

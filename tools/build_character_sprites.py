@@ -179,8 +179,8 @@ def process_belle_character():
         c1 = trans.crop((0 * cell_w, row_idx * cell_h, 1 * cell_w, (row_idx + 1) * cell_h))
         c2 = trans.crop((1 * cell_w, row_idx * cell_h, 2 * cell_w, (row_idx + 1) * cell_h))
         
-        f1 = make_128_frame(c1, target_h=80, target_foot_y=112)
-        f2 = make_128_frame(c2, target_h=80, target_foot_y=112)
+        f1 = make_128_frame(c1, target_h=106, target_foot_y=120)
+        f2 = make_128_frame(c2, target_h=106, target_foot_y=120)
         
         f1.save(os.path.join(out_dir, f"{d}1.png"))
         f2.save(os.path.join(out_dir, f"{d}2.png"))
@@ -189,14 +189,14 @@ def process_belle_character():
 
 
 if __name__ == "__main__":
-    process_2frame_character("cat_mii.jpg", "mii", target_h=88)
-    process_2frame_character("enemy_cat.jpg", "enemy", target_h=88)
-    process_2frame_character("gil_walk_matching_seera_1787908931152.jpg", "gil", target_h=104)
-    process_2frame_character("seera_walk_no_jacket_1787908409932.jpg", "seera", target_h=104)
-    process_2frame_character("shadow_cloak_sprite_1788352434989.jpg", "kagemanto", target_h=106)
-    process_2frame_character("training_dummy_kakashi_1788352453931.jpg", "kakashi", target_h=108)
-    process_2frame_character("grandma_sumire.jpg", "sumire", target_h=102)
-    process_2frame_character("owl_hou.jpg", "hou", target_h=85)
-    process_2frame_character("dark_demon_king_1788352573206.jpg", "maou", target_h=114)
+    process_2frame_character("cat_mii.jpg", "mii", target_h=104)
+    process_2frame_character("enemy_cat.jpg", "enemy", target_h=104)
+    process_2frame_character("gil_walk_matching_seera_1787908931152.jpg", "gil", target_h=112)
+    process_2frame_character("seera_walk_no_jacket_1787908409932.jpg", "seera", target_h=112)
+    process_2frame_character("shadow_cloak_sprite_1788352434989.jpg", "kagemanto", target_h=112)
+    process_2frame_character("training_dummy_kakashi_1788352453931.jpg", "kakashi", target_h=112)
+    process_2frame_character("grandma_sumire.jpg", "sumire", target_h=110)
+    process_2frame_character("owl_hou.jpg", "hou", target_h=96)
+    process_2frame_character("dark_demon_king_1788352573206.jpg", "maou", target_h=120)
     process_belle_character()
     print("All character sprites processed successfully!")
