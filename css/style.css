@@ -303,3 +303,88 @@ canvas#game {
 .cornerbtn.on {
   background: rgba(120, 200, 120, 0.9);
 }
+
+/* タイトルへもどるボタン */
+#btn-title {
+  right: 60px;
+}
+
+/* スタート画面メニューと面選択 */
+.gate-main-btn {
+  margin-top: 14px;
+  width: 100%;
+  padding: 13px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background: #4a9d78;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #367c5d;
+}
+.gate-main-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #367c5d;
+}
+.gate-main-btn.hidden {
+  display: none;
+}
+
+.gate-stage-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f0f7f2;
+  border: 2px solid #bce0cb;
+  border-radius: 14px;
+  text-align: left;
+}
+.gate-stage-label {
+  display: block;
+  font-size: 13px;
+  color: #3a5a45;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+.gate-stage-select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 15px;
+  border: 2px solid #b2d7bf;
+  border-radius: 8px;
+  background: #fff;
+  outline: none;
+  color: #333;
+}
+.gate-stage-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #fff;
+  background: #f4a03c;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #d9822b;
+}
+.gate-stage-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #d9822b;
+}
+
+.gate-box .gate-sub-btn {
+  margin-top: 14px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #e8eee9;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+}
+.gate-box .gate-sub-btn:hover {
+  background: #dbe3dd;
+}
+

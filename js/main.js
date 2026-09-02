@@ -10,58 +10,117 @@
   "use strict";
 
   const gate = document.getElementById("gate");
+  const authArea = document.getElementById("gate-auth-area");
+  const menuArea = document.getElementById("gate-menu-area");
   const input = document.getElementById("gate-input");
   const btn = document.getElementById("gate-btn");
+  const contBtn = document.getElementById("gate-continue");
+  const stageSelect = document.getElementById("gate-stage-select");
+  const startStageBtn = document.getElementById("gate-start-stage");
   const newBtn = document.getElementById("gate-new");
   const errEl = document.getElementById("gate-error");
+  const titleBtn = document.getElementById("btn-title");
 
   const STORAGE_KEY = "riiko_ok";
 
-  // つづきが あるなら「つづきから」、なければ さいしょから
-  function begin(fresh) {
+  // ゲーム開始
+  function begin(stageId, cont) {
     gate.style.display = "none";
-    window.RiikoGame.start(null, { continue: !fresh });
+    window.RiikoGame.start(stageId || null, { continue: !!cont });
   }
 
-  // つづきが ある ときだけ「さいしょから」を 出す
-  function refreshButtons() {
-    const has = window.RiikoGame.hasSave();
-    btn.textContent = has ? "つづきから" : "スタート";
-    if (newBtn) newBtn.classList.toggle("hidden", !has);
+  // ステージ選択ドロップダウンの更新
+  function populateStageSelect() {
+    if (!stageSelect) return;
+    stageSelect.innerHTML = "";
+    const list = window.RiikoGame.getStageList ? window.RiikoGame.getStageList() : [];
+    for (const st of list) {
+      const opt = document.createElement("option");
+      opt.value = st.id;
+      opt.textContent = st.title;
+      stageSelect.appendChild(opt);
+    }
   }
 
-  if (newBtn) {
-    newBtn.addEventListener("click", () => {
-      const val = (input.value || "").trim().toLowerCase();
-      const okAlready = sessionOk();
-      if (!okAlready && val !== String(GAME_CONFIG.password).toLowerCase()) {
-        errEl.textContent = "あいことばを 入れてね";
-        input.focus();
-        return;
+  // メニュー画面の更新表示
+  function showMenu() {
+    if (authArea) authArea.classList.add("hidden");
+    if (menuArea) menuArea.classList.remove("hidden");
+    populateStageSelect();
+
+    const save = window.RiikoGame.getSaveInfo ? window.RiikoGame.getSaveInfo() : null;
+    if (contBtn) {
+      if (save) {
+        contBtn.textContent = "▶ つづきから（" + save.title + "）";
+        contBtn.classList.remove("hidden");
+        if (stageSelect) stageSelect.value = save.stageId;
+      } else {
+        contBtn.classList.add("hidden");
       }
-      window.RiikoGame.eraseSave();
-      begin(true);
-    });
+    }
   }
 
+  // 認証画面の表示
+  function showAuth() {
+    if (authArea) authArea.classList.remove("hidden");
+    if (menuArea) menuArea.classList.add("hidden");
+    if (input) setTimeout(() => input.focus(), 200);
+  }
+
+  // あいことば認証
   function tryPassword() {
     const val = (input.value || "").trim().toLowerCase();
     if (val === String(GAME_CONFIG.password).toLowerCase()) {
       try {
         sessionStorage.setItem(STORAGE_KEY, "1");
       } catch (e) {}
-      begin();
+      if (errEl) errEl.textContent = "";
+      showMenu();
     } else {
-      errEl.textContent = "あいことばが ちがうよ";
+      if (errEl) errEl.textContent = "あいことばが ちがうよ";
       input.value = "";
       input.focus();
     }
   }
 
-  btn.addEventListener("click", tryPassword);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") tryPassword();
-  });
+  if (btn) btn.addEventListener("click", tryPassword);
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") tryPassword();
+    });
+  }
+
+  // つづきから
+  if (contBtn) {
+    contBtn.addEventListener("click", () => {
+      begin(null, true);
+    });
+  }
+
+  // えらんだ面から はじめる
+  if (startStageBtn) {
+    startStageBtn.addEventListener("click", () => {
+      const selected = stageSelect ? stageSelect.value : null;
+      begin(selected, false);
+    });
+  }
+
+  // 最初からやりなおす（1面）
+  if (newBtn) {
+    newBtn.addEventListener("click", () => {
+      window.RiikoGame.eraseSave();
+      begin(window.FIRST_STAGE || "stage1", false);
+    });
+  }
+
+  // ゲーム中からタイトル画面へもどる
+  if (titleBtn) {
+    titleBtn.addEventListener("click", () => {
+      if (window.RiikoGame.stop) window.RiikoGame.stop();
+      gate.style.display = "flex";
+      showMenu();
+    });
+  }
 
   // ===== ほうこうボタン（バーチャルキー） =====
   //   ボタンを おすと、キーボードと同じ しくみで 主人公が うごきます。
@@ -99,10 +158,9 @@
     }
   }
 
-  refreshButtons();
   if (sessionOk()) {
-    begin();
+    showMenu();
   } else {
-    setTimeout(() => input.focus(), 200);
+    showAuth();
   }
 })();

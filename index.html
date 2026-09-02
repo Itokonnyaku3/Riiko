@@ -10,11 +10,29 @@
 <div id="gate" class="overlay">
   <div class="gate-box">
     <div class="gate-title">🐱 ねこの相棒とふしぎの島</div>
-    <div class="gate-sub">あいことばを入れてね</div>
-    <input id="gate-input" type="password" inputmode="text" autocomplete="off" placeholder="あいことば" />
-    <button id="gate-btn">スタート</button>
-    <button id="gate-new" class="gate-sub-btn hidden">さいしょから やりなおす</button>
-    <div id="gate-error" class="gate-error"></div>
+
+    <!-- あいことば入力（未認証時） -->
+    <div id="gate-auth-area">
+      <div class="gate-sub">あいことばを入れてね</div>
+      <input id="gate-input" type="password" inputmode="text" autocomplete="off" placeholder="あいことば" />
+      <button id="gate-btn">スタート</button>
+      <div id="gate-error" class="gate-error"></div>
+    </div>
+
+    <!-- 面選択＆スタートメニュー（認証後） -->
+    <div id="gate-menu-area" class="hidden">
+      <!-- つづきから（セーブがあるとき） -->
+      <button id="gate-continue" class="gate-main-btn hidden">つづきから</button>
+
+      <!-- 面をえらんで はじめる -->
+      <div class="gate-stage-box">
+        <label for="gate-stage-select" class="gate-stage-label">はじめる面を えらぶ：</label>
+        <select id="gate-stage-select" class="gate-stage-select"></select>
+        <button id="gate-start-stage" class="gate-stage-btn">この面から はじめる</button>
+      </div>
+
+      <button id="gate-new" class="gate-sub-btn">さいしょから やりなおす（1面）</button>
+    </div>
   </div>
 </div>
 
@@ -47,8 +65,9 @@
       <button id="btn-hint" class="abtn small hidden" aria-label="ヒント">💡</button>
     </div>
 
-    <!-- こまった ときの ボタン（右上・小さめ） -->
-    <button id="btn-help" class="cornerbtn" aria-label="おたすけ">🆘</button>
+    <!-- タイトルへ・おたすけボタン（右上） -->
+    <button id="btn-title" class="cornerbtn" aria-label="タイトルへ" title="タイトルへ もどる">🏠</button>
+    <button id="btn-help" class="cornerbtn" aria-label="おたすけ" title="おたすけモード">🆘</button>
   </div>
 </div>
 

@@ -767,6 +767,15 @@
     }
   }
 
+  // ---- ざひょうが 障害物と ぶつかっていないか（フェイルセーフ用） ----
+  function isSafePosition(x, y, radius) {
+    const r = radius || PLAYER_R;
+    for (const o of G.obstacles) {
+      if (dist(x, y, o.x, o.y) < o.r + r) return false;
+    }
+    return true;
+  }
+
   // ---- しょうがいぶつを「自動でよける」進む向きの計算 ----
   function steerAround(x, y, dirX, dirY, radius) {
     let ax = dirX,
@@ -1195,6 +1204,12 @@
       G.player.x = opts.respawn.x;
       G.player.y = opts.respawn.y;
       G.respawn = { x: opts.respawn.x, y: opts.respawn.y };
+      // ★復帰地点が障害物にめり込んでいる場合は、安全な初期位置へ戻す（フェイルセーフ）
+      if (!isSafePosition(G.player.x, G.player.y, PLAYER_R)) {
+        G.player.x = sc.player.x;
+        G.player.y = sc.player.y;
+        G.respawn = { x: sc.player.x, y: sc.player.y };
+      }
     }
     G.titleText = sc.title || "";
     G.titleT = 2.6; // 面の なまえを しばらく 出す
@@ -2229,7 +2244,7 @@
       Sfx.warmUp(); // スタートボタンを おした ながれで 音を つかえるように する
       const cont = opts && opts.continue;
 
-      if (scenario) {
+      if (scenario && typeof scenario === "object") {
         // 1つの 面だけ うごかす（テストや ためし用）
         G.flags = {};
         G.talks = {};
@@ -2241,8 +2256,9 @@
         G.titleText = scenario.title || "";
         G.titleT = 2.6;
       } else {
+        const targetStage = typeof scenario === "string" ? scenario : null;
         const save = cont ? loadSave() : null;
-        if (save) {
+        if (save && (!targetStage || save.stageId === targetStage)) {
           G.flags = save.flags || {};
           G.talks = save.talks || {};
           G.items = save.items || {};
@@ -2251,13 +2267,13 @@
           G.helpMode = !!save.helpMode;
           goToStage(save.stageId, { respawn: save.respawn });
         } else {
-          clearSave();
+          if (!targetStage) clearSave();
           G.flags = {};
           G.talks = {};
           G.items = {};
           G.opened = {};
           G.defeated = {};
-          goToStage(window.FIRST_STAGE || "stage1");
+          goToStage(targetStage || window.FIRST_STAGE || "stage1");
         }
       }
 
@@ -2271,6 +2287,28 @@
 
       const hint = document.getElementById("hint");
       if (hint) setTimeout(() => (hint.style.opacity = "0"), 5000);
+    },
+    // ステージ一覧（スタート画面の選択肢用）
+    getStageList() {
+      const order = window.STAGE_ORDER || ["stage1", "stage2", "stage3", "stage4"];
+      const list = [];
+      for (const id of order) {
+        const sc = window.STAGES && window.STAGES[id];
+        if (sc) {
+          list.push({ id: id, title: sc.title || id });
+        }
+      }
+      return list;
+    },
+    // セーブの概要（スタート画面の「つづきから」表示用）
+    getSaveInfo() {
+      const s = loadSave();
+      if (!s) return null;
+      const sc = window.STAGES && window.STAGES[s.stageId];
+      return { stageId: s.stageId, title: (sc && sc.title) || s.stageId };
+    },
+    stop() {
+      G.running = false;
     },
     // つづきが あるか（スタート画面で つかう）
     hasSave: () => !!loadSave(),

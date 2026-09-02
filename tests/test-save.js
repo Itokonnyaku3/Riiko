@@ -275,6 +275,41 @@ st = G._test.state;
 ok("けした あとは 1面から", st.stageId === "stage1");
 ok("けした あとは もちものも ゼロ", Object.keys(st.items).length === 0);
 
+// ===== 9) 面の選択・指定開始 と 岩場スタック防止 =====
+const stageList = G.getStageList();
+ok("面の 一らんが 取れる", Array.isArray(stageList) && stageList.length >= 2);
+ok("1面と2面が 入って いる", stageList.some((s) => s.id === "stage1") && stageList.some((s) => s.id === "stage2"));
+
+// 2面を えらんで 開始
+G.start("stage2", { continue: false });
+st = G._test.state;
+ok("えらんだ面（2面）から はじまる", st.stageId === "stage2");
+ok("2面の 初期位置に いる", st.player.x === 1100 && st.player.y === 1600);
+
+// 岩場に埋まった昔のセーブデータ（550, 800）のシミュレーション
+localStorage.setItem("riiko_save", JSON.stringify({
+  v: 1,
+  stageId: "stage2",
+  flags: {},
+  talks: {},
+  items: {},
+  opened: {},
+  defeated: {},
+  respawn: { x: 550, y: 800 }, // 新マップでは岩場の中
+}));
+const saveInfo = G.getSaveInfo();
+ok("セーブ情報が 取れる", saveInfo && saveInfo.stageId === "stage2" && saveInfo.title.indexOf("2面") >= 0);
+
+// つづきから再開 → 岩場に埋まらず安全な初期位置に自動復帰すること
+G.start(null, { continue: true });
+st = G._test.state;
+ok("岩場に埋まったセーブでも初期位置に安全復帰", st.player.x === 1100 && st.player.y === 1600);
+const nearestObstacle = st.obstacles
+  .map((o) => Math.hypot(o.x - st.player.x, o.y - st.player.y) - o.r - 18)
+  .sort((a, b) => a - b)[0];
+ok("プレイヤーの 周囲に 障害物の めりこみがない", nearestObstacle > 0);
+
+
 // まとめ
 let ng = 0;
 for (const r of T) { console.log(r[0] + "  " + r[1] + "  " + r[2]); if (r[0] === "❌") ng++; }
