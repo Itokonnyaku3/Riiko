@@ -234,6 +234,47 @@
   window.addEventListener("resize", onResize);
   if (window.ResizeObserver) new ResizeObserver(onResize).observe(canvas);
 
+  // キャラクター画像（WALKS）のキャッシュと描画
+  const walkImgCache = {};
+  function getWalkImg(path) {
+    if (!path) return null;
+    let fullPath = path;
+    if (fullPath.startsWith("assets/")) fullPath = "../" + fullPath;
+    if (!walkImgCache[fullPath]) {
+      const img = new Image();
+      img.src = fullPath;
+      walkImgCache[fullPath] = img;
+    }
+    return walkImgCache[fullPath];
+  }
+
+  function drawWalkSprite(walkObj, dir, frame, x, y, size) {
+    if (!walkObj) return false;
+    const paths = walkObj[dir || "down"];
+    if (!paths) return false;
+    const path = Array.isArray(paths) ? paths[frame || 0] : paths;
+    const img = getWalkImg(path);
+    if (!img || !img.complete || img.naturalWidth === 0) return false;
+    const s = size || 68;
+    ctx.drawImage(img, x - s / 2, y - s / 2, s, s);
+    return true;
+  }
+
+  function drawEventTag(text, x, y) {
+    if (!text) return;
+    ctx.save();
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const m = ctx.measureText(text);
+    const pad = 3;
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(x - m.width / 2 - pad, y - 7 - pad, m.width + pad * 2, 14 + pad * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
   // 絵文字で かく（めじるし・ためし歩きの 人）
   function sprite(s, x, y, size) {
     A.drawEmoji(ctx, s, x, y, size);
@@ -844,9 +885,36 @@
       }
       ctx.fillStyle = sel ? "rgba(255,230,168,0.6)" : "rgba(0,0,0,0.4)";
       ctx.beginPath();
-      ctx.arc(o.x, o.y, 22, 0, Math.PI * 2);
+      ctx.arc(o.x, o.y, 24, 0, Math.PI * 2);
       ctx.fill();
-      sprite(o.sprite || def.ic, o.x, o.y, 32);
+
+      let drawn = false;
+      let label = "";
+      if (kind === "start") {
+        drawn = drawWalkSprite(window.WALKS && window.WALKS.player, "down", 0, o.x, o.y, o.size || 68);
+        label = "スタート";
+      } else if (kind === "npc") {
+        const wKey = o.walkKey || o.walk;
+        const wData = (window.WALKS && wKey && window.WALKS[wKey]) || (window.WALKS && window.WALKS[o.id]);
+        drawn = drawWalkSprite(wData, "down", 0, o.x, o.y, o.size || 76);
+        label = o.name || "NPC";
+      } else if (kind === "enemy") {
+        const isDummy = o.behavior === "dummy";
+        const wData = isDummy ? (window.WALKS && window.WALKS.kakashi) : (window.WALKS && window.WALKS.enemy);
+        drawn = drawWalkSprite(wData, "down", 0, o.x, o.y, o.size || (isDummy ? 80 : 72));
+        label = o.name || (isDummy ? "かかし" : "てき");
+      } else if (kind === "exit") {
+        label = o.label || "出口";
+      } else if (kind === "chest") {
+        label = o.item ? "宝:" + o.item : "宝箱";
+      }
+
+      if (!drawn) {
+        sprite(o.sprite || def.ic, o.x, o.y, 32);
+      }
+      if (label && S.zoom >= 0.35) {
+        drawEventTag(label, o.x, o.y - 30);
+      }
     };
     if (d.player) drawOne("start", d.player, -1);
     if (d.exit) drawOne("exit", d.exit, -1);
@@ -1110,10 +1178,36 @@
   }
 
   // ---- タイプごとの 編集らん ----
+  const NPC_PRESETS = [
+    { value: "", label: "（キャラを えらぶ）" },
+    { value: "gil", label: "👦 狩人見習いの ギル", name: "狩人見習いの ギル", sprite: "👦", size: 76, walkKey: "gil" },
+    { value: "seera", label: "👧 情報屋の セーラ", name: "情報屋の セーラ", sprite: "👧", size: 76, walkKey: "seera" },
+    { value: "sumire", label: "🧓 むらの スミレばあちゃん", name: "むらの スミレばあちゃん", sprite: "🧓", size: 76, walkKey: "sumire" },
+    { value: "hou", label: "🦉 ふくろうの ホゥ", name: "ふくろうの ホゥ", sprite: "🦉", size: 68, walkKey: "hou" },
+    { value: "belle", label: "🧚 妖精ベル", name: "ベル", sprite: "🧚", size: 68, walkKey: "belle" },
+    { value: "mii", label: "🐱 相棒ねこ ミィ", name: "ミィ", sprite: "🐱", size: 68, walkKey: "mii" },
+  ];
+
   function renderNpcFields(add, ev) {
+    add(fieldRow("キャラ プリセット", selectInput("", NPC_PRESETS, (val) => {
+      const p = NPC_PRESETS.find((x) => x.value === val);
+      if (!p || !p.value) return;
+      ev.name = p.name;
+      ev.sprite = p.sprite;
+      ev.size = p.size;
+      ev.walkKey = p.walkKey;
+      save();
+      renderInspector();
+    })));
     add(fieldRow("名前", textInput(ev.name || "", (v) => { ev.name = v; save(); })));
-    add(fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })));
-    add(fieldRow("話しかける きょり（r。空で 30）", optionalNumberInput(ev.r, (v) => { if (v == null) delete ev.r; else ev.r = v; save(); })));
+    add(row2(
+      fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })),
+      fieldRow("歩行画像（walkKey）", textInput(ev.walkKey || "", (v) => { if (v) ev.walkKey = v; else delete ev.walkKey; save(); }))
+    ));
+    add(row2(
+      fieldRow("大きさ（size。空で 76）", optionalNumberInput(ev.size, (v) => { if (v == null) delete ev.size; else ev.size = v; save(); })),
+      fieldRow("話しかける きょり（r。空で 30）", optionalNumberInput(ev.r, (v) => { if (v == null) delete ev.r; else ev.r = v; save(); }))
+    ));
     add(row2(
       fieldRow("set（話すと 立つ フラグ）", textInput(ev.set || "", (v) => { if (v) ev.set = v; else delete ev.set; save(); })),
       fieldRow("if（この フラグの ときだけ）", textInput(ev.if || "", (v) => { if (v) ev.if = v; else delete ev.if; save(); }))
@@ -1147,9 +1241,32 @@
     { value: "shooter", label: "shooter（弾を うつ）" },
     { value: "charge", label: "charge（ためて 突進）" },
   ];
+
+  const ENEMY_PRESETS = [
+    { value: "", label: "（てきを えらぶ）" },
+    { value: "cat", label: "😾 森の ネコ（パトロール）", name: "森の ネコ", sprite: "😾", size: 72, maxHp: 16, attack: 3, behavior: "patrol" },
+    { value: "charge", label: "😾 突進ネコ（ためてダッシュ）", name: "突進ネコ", sprite: "😾", size: 72, maxHp: 20, attack: 3, behavior: "charge" },
+    { value: "kakashi", label: "🪵 かかし（れんしゅう台）", name: "かかし", sprite: "🪵", size: 80, maxHp: 99, attack: 0, behavior: "dummy" },
+  ];
+
   function renderEnemyFields(add, ev) {
+    add(fieldRow("てき プリセット", selectInput("", ENEMY_PRESETS, (val) => {
+      const p = ENEMY_PRESETS.find((x) => x.value === val);
+      if (!p || !p.value) return;
+      ev.name = p.name;
+      ev.sprite = p.sprite;
+      ev.size = p.size;
+      ev.maxHp = p.maxHp;
+      ev.attack = p.attack;
+      ev.behavior = p.behavior;
+      save();
+      renderInspector();
+    })));
     add(fieldRow("名前", textInput(ev.name || "", (v) => { ev.name = v; save(); })));
-    add(fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })));
+    add(row2(
+      fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })),
+      fieldRow("大きさ（size。敵: 72、かかし: 80）", optionalNumberInput(ev.size, (v) => { if (v == null) delete ev.size; else ev.size = v; save(); }))
+    ));
     add(row2(
       fieldRow("HP", numberInput(ev.maxHp, (v) => { ev.maxHp = v; save(); })),
       fieldRow("こうげき力", numberInput(ev.attack, (v) => { ev.attack = v; save(); }))
@@ -1430,24 +1547,48 @@
       const len = Math.hypot(kx, ky) || 1;
       w.x += (kx / len) * 150 * dt;
       w.y += (ky / len) * 150 * dt;
+      if (Math.abs(kx) > Math.abs(ky)) {
+        w.dir = kx > 0 ? "right" : "left";
+      } else {
+        w.dir = ky > 0 ? "down" : "up";
+      }
+      w.animT = (w.animT || 0) + dt;
+      if (w.animT > 0.18) {
+        w.animT = 0;
+        w.frame = (w.frame || 0) === 0 ? 1 : 0;
+      }
+    } else {
+      w.frame = 0;
     }
-    // しょうがいぶつから おし出す（ゲームと おなじ しくみ）
+
+    // しょうがいぶつから おし出す（ゲームと おなじ 足元・根元シフト判定）
     const R = 18;
+    const footOffset = 68 * 0.28; // ~19px
+    let fx = w.x;
+    let fy = w.y + footOffset;
+
     const push = (o) => {
-      const dx = w.x - o.x,
-        dy = w.y - o.y;
+      const ox = o.x;
+      const oy = o.y + (o.r ? o.r * 0.2 : 0);
+      const or = o.r;
+      const min = or + R;
+      const dx = fx - ox,
+        dy = fy - oy;
       const d = Math.hypot(dx, dy);
-      const min = o.r + R;
       if (d < min) {
-        if (d < 0.001) w.x = o.x + min;
-        else {
-          w.x = o.x + (dx / d) * min;
-          w.y = o.y + (dy / d) * min;
+        if (d < 0.001) {
+          fx = ox + min;
+        } else {
+          fx = ox + (dx / d) * min;
+          fy = oy + (dy / d) * min;
         }
       }
     };
     for (const o of S.fillCache) push(o);
     for (const o of S.data.objects) push(o);
+    w.x = fx;
+    w.y = fy - footOffset;
+
     w.x = Math.max(20, Math.min(S.data.world.width - 20, w.x));
     w.y = Math.max(20, Math.min(S.data.world.height - 20, w.y));
 
@@ -1460,11 +1601,16 @@
 
   function drawWalker() {
     if (!S.walk) return;
+    const w = S.walk;
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.beginPath();
-    ctx.ellipse(S.walk.x, S.walk.y + 12, 16, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(w.x, w.y + 20, 18, 8, 0, 0, Math.PI * 2);
     ctx.fill();
-    sprite("👧", S.walk.x, S.walk.y, 42);
+
+    const drawn = drawWalkSprite(window.WALKS && window.WALKS.player, w.dir || "down", w.frame || 0, w.x, w.y, 68);
+    if (!drawn) {
+      sprite("👧", w.x, w.y, 42);
+    }
   }
 
   // =========================================================
@@ -1922,6 +2068,22 @@
           "&nbsp;&nbsp;<code>&lt;script src=\"js/stages/" + name + "\"&gt;&lt;/script&gt;</code>"
       );
     };
+
+    const copyMapBtn = $("b-copy-map");
+    if (copyMapBtn) {
+      copyMapBtn.onclick = () => {
+        const code = exportJS();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).catch(() => {});
+        }
+        modal(
+          "📋 マップコードを コピーしました",
+          "クリップボードに コピーしました！<br>" +
+            "<code>js/maps/" + S.data.name + ".js</code> を エディタで ひらいて、ぜんぶ 貼り付けるだけで ゲームに すぐ 反映されます！",
+          code
+        );
+      };
+    }
 
     $("b-code").onclick = () => {
       modal(
