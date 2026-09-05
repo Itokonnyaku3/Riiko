@@ -39,6 +39,7 @@
     carpet: { label: "あかい じゅうたん", color: "#b4535a" },
     snow:   { label: "ゆき",             color: "#e9f1f7" },
     lava:   { label: "あつい ゆか",       color: "#d5763f" },
+    water:  { label: "みず・かわ",        color: "#4da6ff" },
   };
 
   // ---- しょうがいぶつ パーツ（ぶつかる）----
@@ -207,6 +208,7 @@
       checkpoints: (data.checkpoints || []).map((c) => ({ ...c })),
       triggers: (data.triggers || []).map((t) => ({ ...t })),
       gates: (data.gates || []).map((g) => ({ ...g })),
+      boulders: (data.boulders || []).map((b) => ({ ...b })),
       exit: data.exit ? { ...data.exit } : null,
       hints: (data.hints || []).map((h) => ({ ...h })),
       intro: data.intro ? JSON.parse(JSON.stringify(data.intro)) : null,
@@ -419,6 +421,7 @@
     if (Array.isArray(rawData.checkpoints)) stage.checkpoints = built.checkpoints;
     if (Array.isArray(rawData.triggers)) stage.triggers = built.triggers;
     if (Array.isArray(rawData.gates)) stage.gates = built.gates;
+    if (Array.isArray(rawData.boulders)) stage.boulders = built.boulders;
     if (built.exit) stage.exit = built.exit;
     if (Array.isArray(rawData.hints) && rawData.hints.length > 0) stage.hints = built.hints;
 

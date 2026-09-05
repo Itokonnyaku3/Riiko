@@ -439,8 +439,33 @@
           c.stroke();
         }
       });
+    } else if (key === "water") {
+      // 7) 水面・川（澄んだ青＋さざなみ）
+      c.fillStyle = "#4ea8de";
+      c.fillRect(0, 0, size, size);
+      const rng = makeRng(777);
+      wrapDraw(() => {
+        // 水面の濃淡
+        for (let i = 0; i < 60; i++) {
+          const x = rng() * size, y = rng() * size, r = 10 + rng() * 18;
+          c.fillStyle = rng() < 0.5 ? "rgba(255, 255, 255, 0.18)" : "rgba(30, 100, 180, 0.15)";
+          c.beginPath();
+          c.ellipse(x, y, r * 1.5, r * 0.5, 0, 0, Math.PI * 2);
+          c.fill();
+        }
+        // さざなみ波紋
+        c.strokeStyle = "rgba(255, 255, 255, 0.35)";
+        c.lineWidth = 1.5;
+        for (let y = 12; y < size; y += 24) {
+          c.beginPath();
+          c.moveTo(0, y);
+          c.bezierCurveTo(size * 0.25, y - 3, size * 0.5, y + 3, size * 0.75, y - 2);
+          c.bezierCurveTo(size * 0.88, y - 1, size * 0.95, y + 2, size, y);
+          c.stroke();
+        }
+      });
     } else {
-      // 7) 任意の背景色（森の土台 #4e7a44 など）
+      // 8) 任意の背景色（森の土台 #4e7a44 など）
       const baseCol = (typeof key === "string" && key.startsWith("#")) ? key : "#4e7a44";
       c.fillStyle = baseCol;
       c.fillRect(0, 0, size, size);

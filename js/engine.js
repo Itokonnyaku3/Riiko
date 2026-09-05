@@ -492,6 +492,7 @@
     chests: [],
     npcs: [],
     obstacles: [],
+    boulders: [], // 押せる岩・爆弾岩（2面など）
     decorations: [],
     bullets: [],
     floaters: [], // ふわっと出る文字（ダメージなど）
@@ -1106,8 +1107,37 @@
   // ---- しょきか ----
   function setup(scenario) {
     invalidateAreaChunks();
-    G.world = scenario.world;
-    G.obstacles = (scenario.obstacles || []).map((o) => ({ ...o }));
+    const isRiverFlowing = !!G.flags["riverFlowing"];
+    G.world = scenario.world ? { ...scenario.world } : null;
+    if (G.world && scenario.world.areas) {
+      G.world.areas = scenario.world.areas.map((a) => {
+        if (a.river) {
+          return {
+            ...a,
+            kind: isRiverFlowing ? "water" : (a.dryKind || "sand"),
+            color: isRiverFlowing ? "#4da6ff" : (a.dryColor || "#c9a878"),
+          };
+        }
+        return { ...a };
+      });
+    }
+
+    // せき止め石（川が流れていれば撤去）
+    G.obstacles = (scenario.obstacles || [])
+      .filter((o) => !(isRiverFlowing && o.dam))
+      .map((o) => ({ ...o }));
+
+    // 押せる岩・爆弾岩（川が流れていれば爆破済みなので出ない）
+    G.boulders = (scenario.boulders || [])
+      .filter(() => !isRiverFlowing)
+      .map((b) => ({
+        ...b,
+        r: b.r || 28,
+        size: b.size || 58,
+        sprite: b.sprite || "💣",
+        active: true,
+      }));
+
     G.decorations = (scenario.decorations || []).map((d) => ({ ...d }));
 
     G.player = {
@@ -1697,6 +1727,7 @@
     if (G.fairy) updateFairy(dt);
     updateEnemies(dt);
     updateBullets(dt);
+    updateBoulders(dt);
     updateFloaters(dt);
     updateStuck(dt);
     updateCamera();
@@ -2523,6 +2554,20 @@
         damagePlayer(b.dmg || 1);
         continue;
       }
+      // 爆弾岩（盾になって弾を防ぐ）
+      let boulderHit = false;
+      for (const bld of G.boulders || []) {
+        if (!bld.active) continue;
+        if (dist(b.x, b.y, bld.x, bld.y) < (bld.r || 28) + (b.r || 7)) {
+          b.life = 0;
+          boulderHit = true;
+          addFloater(bld.x, bld.y - 18, "ガード！🛡️", "#ffe36b", 0.5);
+          Sfx.play("hit");
+          break;
+        }
+      }
+      if (boulderHit) continue;
+
       // 障害物に当たったら 消える
       for (const o of G.obstacles) {
         if (dist(b.x, b.y, o.x, o.y) < o.r) {
@@ -2539,6 +2584,144 @@
         b.x < G.world.width + 20 &&
         b.y < G.world.height + 20
     );
+  }
+
+  // ---- 押せる岩・爆弾岩（2面ギミック）----
+  let boulderSoundCd = 0;
+  function updateBoulders(dt) {
+    if (!G.boulders || !G.boulders.length) return;
+    const p = G.player;
+    if (!p) return;
+    if (boulderSoundCd > 0) boulderSoundCd -= dt;
+
+    const footOffset = 44 * 0.28;
+    const fx = p.x;
+    const fy = p.y + footOffset;
+
+    for (const b of G.boulders) {
+      if (!b.active) continue;
+      const br = b.r || 28;
+      const minDist = br + PLAYER_R;
+      const dx = b.x - fx;
+      const dy = b.y - fy;
+      const d = Math.hypot(dx, dy);
+
+      if (d < minDist) {
+        // プレイヤーから岩への方向
+        const nx = dx / (d || 1);
+        const ny = dy / (d || 1);
+
+        // プレイヤーの進行方向（p.dirX, p.dirY）と、岩への方向の内積
+        // 正なら「岩に向かって進んでいる＝後ろから押している」
+        const pushAlignment = p.dirX * nx + p.dirY * ny;
+        const isMoving = p.moving || G.keys["ArrowUp"] || G.keys["ArrowDown"] || G.keys["ArrowLeft"] || G.keys["ArrowRight"] ||
+          (G.stick && (Math.abs(G.stick.x) > 0.1 || Math.abs(G.stick.y) > 0.1));
+
+        if (pushAlignment > 0.2 && isMoving) {
+          const pushSpeed = p.speed * 0.65;
+          const pushStep = pushSpeed * dt;
+          const nextBx = b.x + nx * pushStep;
+          const nextBy = b.y + ny * pushStep;
+
+          // 岩が他の障害物（壁や木）とぶつかるかチェック
+          let blocked = false;
+          for (const o of G.obstacles) {
+            if (o.dam) continue; // せき止め石には接近して接触させる
+            const ox = o.x;
+            const oy = o.y + (o.r ? o.r * 0.2 : 0);
+            const or = o.r || 24;
+            if (Math.hypot(nextBx - ox, nextBy - oy) < br + or) {
+              blocked = true;
+              break;
+            }
+          }
+
+          if (nextBx < br + 20 || nextBx > G.world.width - br - 20 || nextBy < br + 20 || nextBy > G.world.height - br - 20) {
+            blocked = true;
+          }
+
+          if (!blocked) {
+            b.x = nextBx;
+            b.y = nextBy;
+            if (boulderSoundCd <= 0) {
+              boulderSoundCd = 0.28;
+              Sfx.play("step");
+              addFloater(b.x + (Math.random() - 0.5) * 16, b.y + br * 0.5, "💨", "#e0d5c0", 0.35);
+            }
+          }
+        }
+
+        // プレイヤー自身のめり込み防止押し戻し
+        const overlap = minDist - d;
+        p.x -= nx * overlap;
+        p.y -= ny * overlap;
+      }
+
+      // せき止め巨石（ダム）に到達したかチェック
+      checkDamDestruction(b);
+    }
+  }
+
+  // せき止め巨石（ダム）への到達検知と爆破
+  let damExploding = false;
+  function checkDamDestruction(bld) {
+    if (damExploding || G.flags["riverFlowing"]) return;
+    const damList = (G.obstacles || []).filter((o) => o.dam);
+    if (!damList.length) return;
+
+    // ダムのいずれかの巨石に接触
+    const nearDam = damList.some((d) => Math.hypot(bld.x - d.x, bld.y - d.y) < (bld.r || 28) + (d.r || 30) + 14);
+    if (nearDam) {
+      triggerDamExplosion(bld, damList);
+    }
+  }
+
+  function triggerDamExplosion(bld, damList) {
+    damExploding = true;
+    bld.active = false;
+
+    // ベルのセリフ演出
+    const bellName = (G.fairy && G.fairy.name) || "ベル";
+    Dialogue.open(bellName, [
+      "ちょっと！ リイコ、はなれなさい！",
+      "アタシの 魔法で、あの 爆弾岩に 火をつけてあげるわ！",
+      "いくわよ…… えーーいっ！！✨"
+    ]);
+
+    setTimeout(() => {
+      G.shake = 35; // 画面大揺れ
+      Sfx.play("defeat");
+      addFloater(bld.x, bld.y - 40, "ドッカーーーーーン！！💥💥💥", "#ff4444", 2.0);
+      addFloater(bld.x, bld.y, "🔥", "#ff8800", 1.5);
+
+      // せき止め巨石を障害物から全撤去
+      G.obstacles = G.obstacles.filter((o) => !o.dam);
+      // 爆弾岩も消滅
+      G.boulders = G.boulders.filter((b) => b !== bld);
+
+      // 川の復活！
+      G.flags["riverFlowing"] = true;
+      if (G.world && G.world.areas) {
+        G.world.areas.forEach((a) => {
+          if (a.river) {
+            a.kind = "water";
+            a.color = "#4da6ff";
+          }
+        });
+      }
+      invalidateAreaChunks();
+      saveGame();
+
+      setTimeout(() => {
+        addFloater(G.player.x, G.player.y - 60, "ザーーーッ！ 水が 流れてきた！🌊", "#4da6ff", 2.2);
+        Dialogue.open("ベル", [
+          "やったわ！ 見なさいよ、この 威力！",
+          "これで 川に 水が 戻ったわね！",
+          "さあ、あの ペンギンの ところへ もどって みましょう！"
+        ]);
+        damExploding = false;
+      }, 1200);
+    }, 1500);
   }
 
   function updateFloaters(dt) {
@@ -2643,6 +2826,28 @@
           ctx.fill();
           ctx.fillStyle = "#000"; // かげの うすい色を もどす
           Assets.drawPart(ctx, o.sprite, o.x + ox, o.y + oy, o.r);
+        },
+      });
+    }
+
+    // 押せる岩（爆弾岩）
+    for (const b of G.boulders || []) {
+      if (!b.active || !onScreen(b.x, b.y, 60)) continue;
+      renderables.push({
+        baseY: b.y + (b.r ? b.r * 0.55 : 14),
+        draw: () => {
+          // 接地影
+          ctx.fillStyle = "rgba(0,0,0,0.18)";
+          ctx.beginPath();
+          ctx.ellipse(b.x + ox, b.y + oy + (b.r || 28) * 0.5, b.r || 28, (b.r || 28) * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // 爆弾岩（💣）
+          drawSprite(b.sprite || "💣", b.x + ox, b.y + oy, b.size || 58);
+          // 導火線の火花エフェクト
+          if (Math.random() < 0.4) {
+            ctx.fillStyle = "#ffcc00";
+            ctx.fillRect(b.x + ox + 6 + (Math.random() - 0.5) * 8, b.y + oy - 20, 2.5, 2.5);
+          }
         },
       });
     }

@@ -314,8 +314,9 @@ ok("1面と2面が 入って いる", stageList.some((s) => s.id === "stage1") &
 // 2面を えらんで 開始
 G.start("stage2", { continue: false });
 st = G._test.state;
+const s2Spawn = (window.STAGES && window.STAGES.stage2 && window.STAGES.stage2.player) || { x: 1100, y: 3380 };
 ok("えらんだ面（2面）から はじまる", st.stageId === "stage2");
-ok("2面の 初期位置に いる", st.player.x === 1100 && st.player.y === 1600);
+ok("2面の 初期位置に いる", st.player.x === s2Spawn.x && st.player.y === s2Spawn.y);
 
 // 岩場に埋まった昔のセーブデータ（550, 800）のシミュレーション
 localStorage.setItem("riiko_save", JSON.stringify({
@@ -334,7 +335,7 @@ ok("セーブ情報が 取れる", saveInfo && saveInfo.stageId === "stage2" && 
 // つづきから再開 → 岩場に埋まらず安全な初期位置に自動復帰すること
 G.start(null, { continue: true });
 st = G._test.state;
-ok("岩場に埋まったセーブでも初期位置に安全復帰", st.player.x === 1100 && st.player.y === 1600);
+ok("岩場に埋まったセーブでも初期位置に安全復帰", st.player.x === s2Spawn.x && st.player.y === s2Spawn.y);
 const nearestObstacle = st.obstacles
   .map((o) => Math.hypot(o.x - st.player.x, o.y - st.player.y) - o.r - 18)
   .sort((a, b) => a - b)[0];

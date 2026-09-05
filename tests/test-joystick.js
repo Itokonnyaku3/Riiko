@@ -216,6 +216,7 @@ const ng = T.filter((t) => t[0] === "❌").length;
 console.log("");
 if (ng === 0) {
   console.log(`${T.length} / ${T.length} OK (All Passed)`);
+  process.exit(0);
 } else {
   console.log(`${ng} FAILED`);
   process.exit(1);
