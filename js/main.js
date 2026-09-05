@@ -185,14 +185,123 @@
     });
   }
 
-  // ===== ほうこうボタン（バーチャルキー） =====
-  //   ボタンを おすと、キーボードと同じ しくみで 主人公が うごきます。
+  // ===== バーチャルジョイスティック（スライドパッド） =====
+  //   指で押したまま上下左右・斜めに自由に動かせる操作インターフェース
   function setDir(key, down) {
     window.dispatchEvent(
       new KeyboardEvent(down ? "keydown" : "keyup", { key: key })
     );
   }
 
+  const joystick = document.getElementById("joystick");
+  const knob = joystick ? joystick.querySelector(".joystick-knob") : null;
+  const base = joystick ? joystick.querySelector(".joystick-base") : null;
+
+  if (joystick && knob && base) {
+    let activePointerId = null;
+    let centerX = 0, centerY = 0;
+    const MAX_DIST = 46; // 最大変位量（px）
+    const DEAD_ZONE = 7; // 反応しない不感帯（微細なブレ防止）
+
+    // 8方向キーシミュレーション状態（斜め入力にも対応）
+    let activeSimKeys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    function syncSimKeys(sx, sy) {
+      const threshold = 0.32;
+      const next = {
+        ArrowLeft: sx < -threshold,
+        ArrowRight: sx > threshold,
+        ArrowUp: sy < -threshold,
+        ArrowDown: sy > threshold,
+      };
+
+      for (const k of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+        if (next[k] !== activeSimKeys[k]) {
+          activeSimKeys[k] = next[k];
+          setDir(k, next[k]);
+        }
+      }
+    }
+
+    function updateStick(clientX, clientY) {
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < DEAD_ZONE) {
+        knob.style.transform = "translate(0px, 0px)";
+        if (window.RiikoGame && window.RiikoGame.setStick) {
+          window.RiikoGame.setStick(0, 0);
+        }
+        syncSimKeys(0, 0);
+        return;
+      }
+
+      const angle = Math.atan2(dy, dx);
+      const clampedDist = Math.min(dist, MAX_DIST);
+      const knobX = Math.cos(angle) * clampedDist;
+      const knobY = Math.sin(angle) * clampedDist;
+
+      knob.style.transform = `translate(${knobX.toFixed(1)}px, ${knobY.toFixed(1)}px)`;
+
+      // 正規化ベクトル（-1.0 〜 +1.0）
+      const norm = clampedDist / MAX_DIST;
+      const sx = Math.cos(angle) * norm;
+      const sy = Math.sin(angle) * norm;
+
+      if (window.RiikoGame && window.RiikoGame.setStick) {
+        window.RiikoGame.setStick(sx, sy);
+      }
+      syncSimKeys(sx, sy);
+    }
+
+    function resetStick() {
+      activePointerId = null;
+      knob.classList.remove("active");
+      knob.style.transform = "translate(0px, 0px)";
+      if (window.RiikoGame && window.RiikoGame.setStick) {
+        window.RiikoGame.setStick(0, 0);
+      }
+      syncSimKeys(0, 0);
+    }
+
+    joystick.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (activePointerId !== null) return;
+      activePointerId = e.pointerId;
+      try {
+        joystick.setPointerCapture(e.pointerId);
+      } catch (err) {}
+      knob.classList.add("active");
+
+      const rect = base.getBoundingClientRect();
+      centerX = rect.left + rect.width / 2;
+      centerY = rect.top + rect.height / 2;
+
+      updateStick(e.clientX, e.clientY);
+    });
+
+    joystick.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== activePointerId) return;
+      e.preventDefault();
+      updateStick(e.clientX, e.clientY);
+    });
+
+    const onPointerEnd = (e) => {
+      if (e.pointerId !== activePointerId) return;
+      e.preventDefault();
+      try {
+        joystick.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      resetStick();
+    };
+
+    joystick.addEventListener("pointerup", onPointerEnd);
+    joystick.addEventListener("pointercancel", onPointerEnd);
+    joystick.addEventListener("lostpointercapture", resetStick);
+  }
+
+  // 旧.dbtn互換処理（テスト環境やフォールバック用）
   document.querySelectorAll(".dbtn").forEach((b) => {
     const key = b.getAttribute("data-dir");
     const pressOn = (ev) => {
@@ -208,7 +317,6 @@
     b.addEventListener("pointerup", pressOff);
     b.addEventListener("pointercancel", pressOff);
     b.addEventListener("pointerleave", pressOff);
-    // 指がすべって外れたときの保険
     b.addEventListener("lostpointercapture", pressOff);
   });
 

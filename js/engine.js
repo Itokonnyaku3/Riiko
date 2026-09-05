@@ -500,6 +500,7 @@
     items: {}, // あつめたアイテムの数（例：{ ほうせき: 2 }）
     bossDefeated: false,
     keys: {},
+    stick: { x: 0, y: 0 }, // バーチャルジョイスティック入力（-1.0〜+1.0）
     move: { active: false, tx: 0, ty: 0 }, // 「ここへ歩く」目標
     // ---- 面・きろく（Ph2）----
     stageId: null, // いま あそんで いる 面
@@ -1104,6 +1105,7 @@
 
   // ---- しょきか ----
   function setup(scenario) {
+    invalidateAreaChunks();
     G.world = scenario.world;
     G.obstacles = (scenario.obstacles || []).map((o) => ({ ...o }));
     G.decorations = (scenario.decorations || []).map((d) => ({ ...d }));
@@ -1328,6 +1330,7 @@
       const oy = o.y + (o.r ? o.r * 0.2 : 0);
       const or = o.r;
       const min = or + r;
+      if (Math.abs(fx - ox) > min || Math.abs(fy - oy) > min) continue;
 
       const dx = fx - ox;
       const dy = fy - oy;
@@ -1355,7 +1358,9 @@
       const ox = o.x;
       const oy = o.y + (o.r ? o.r * 0.2 : 0);
       const or = o.r;
-      if (dist(fx, fy, ox, oy) < or + r) return false;
+      const min = or + r;
+      if (Math.abs(fx - ox) > min || Math.abs(fy - oy) > min) continue;
+      if (dist(fx, fy, ox, oy) < min) return false;
     }
     return true;
   }
@@ -1373,10 +1378,12 @@
       const ox = o.x;
       const oy = o.y + (o.r ? o.r * 0.2 : 0);
       const or = o.r;
+      const reach = or + r + 26; // これより近い障害物をよける
+      if (Math.abs(ox - fx) > reach || Math.abs(oy - fy) > reach) continue;
+
       const dx = ox - fx,
         dy = oy - fy;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const reach = or + r + 26; // これより近い障害物をよける
       if (d < reach && d > 0.001) {
         const nx = dx / d,
           ny = dy / d;
@@ -1708,6 +1715,12 @@
     if (G.keys["ArrowUp"] || G.keys["w"]) ky -= 1;
     if (G.keys["ArrowDown"] || G.keys["s"]) ky += 1;
 
+    // ジョイスティック・スライドパッド（タッチ操作用）
+    if (G.stick && (Math.abs(G.stick.x) > 0.04 || Math.abs(G.stick.y) > 0.04)) {
+      kx += G.stick.x;
+      ky += G.stick.y;
+    }
+
     // 剣の タイマー
     if (p.atkT > 0) p.atkT -= dt;
     if (p.atkCd > 0) p.atkCd -= dt;
@@ -1727,13 +1740,14 @@
       resolveObstacles(p, PLAYER_R);
     }
 
-    // 主人公は キーボード／ほうこうボタン だけで うごく
-    if (kx || ky) {
+    // 主人公は キーボード／バーチャルジョイスティック だけで うごく
+    if (Math.abs(kx) > 0.02 || Math.abs(ky) > 0.02) {
       const len = Math.sqrt(kx * kx + ky * ky) || 1;
+      const normSpeed = Math.min(1, len); // キーボードの斜め移動（len ≈ 1.414）やスティック全開時は1に正規化
       p.dirX = kx / len; // むいている ほうを おぼえる（剣は こっちに 当たる）
       p.dirY = ky / len;
       // 剣を ふって いる あいだは すこし ゆっくり
-      const sp = p.atkT > 0 ? p.speed * 0.45 : p.speed;
+      const sp = (p.atkT > 0 ? p.speed * 0.45 : p.speed) * normSpeed;
       p.x += (kx / len) * sp * dt;
       p.y += (ky / len) * sp * dt;
       resolveObstacles(p, PLAYER_R);
@@ -2962,10 +2976,108 @@
     ctx.fillText(text, 25, 32);
   }
 
+  // あるける じめんのオフスクリーンキャッシュ（パフォーマンス最適化）
+  const AREA_CHUNK_SIZE = 800;
+  let areaChunks = null;
+
+  function invalidateAreaChunks() {
+    areaChunks = null;
+  }
+
+  function getAreaChunks() {
+    if (areaChunks) return areaChunks;
+    const areas = (G.world && G.world.areas) || [];
+    if (!areas.length || typeof document === "undefined" || !document.createElement) {
+      return null;
+    }
+    const w = (G.world && G.world.width) || 2400;
+    const h = (G.world && G.world.height) || 4400;
+    const cols = Math.ceil(w / AREA_CHUNK_SIZE);
+    const rows = Math.ceil(h / AREA_CHUNK_SIZE);
+    areaChunks = [];
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = c * AREA_CHUNK_SIZE;
+        const cy = r * AREA_CHUNK_SIZE;
+        const cw = Math.min(AREA_CHUNK_SIZE, w - cx);
+        const ch = Math.min(AREA_CHUNK_SIZE, h - cy);
+
+        // このチャンクに重なるエリアのみ抽出（余白15px）
+        const overlapping = areas.filter((a) => {
+          if (a.shape === "circle") {
+            const rad = (a.r || 0) + 15;
+            return a.x + rad >= cx && a.x - rad <= cx + cw && a.y + rad >= cy && a.y - rad <= cy + ch;
+          } else {
+            return a.x + (a.w || 0) + 15 >= cx && a.x - 15 <= cx + cw && a.y + (a.h || 0) + 15 >= cy && a.y - 15 <= cy + ch;
+          }
+        });
+
+        if (!overlapping.length) continue;
+
+        const cvs = document.createElement("canvas");
+        cvs.width = cw;
+        cvs.height = ch;
+        const cctx = cvs.getContext("2d");
+        if (!cctx) continue;
+
+        cctx.translate(-cx, -cy);
+
+        // パス1: 土の道・石畳の下に落とす柔らかな接地影
+        cctx.fillStyle = "rgba(0, 0, 0, 0.09)";
+        for (const a of overlapping) {
+          if (a.kind !== "dirt" && a.kind !== "stone" && a.kind !== "stone2") continue;
+          if (a.shape === "circle") {
+            cctx.beginPath();
+            cctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
+            cctx.fill();
+          } else {
+            const rad = Math.min(18, a.w / 2, a.h / 2);
+            roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, rad + 2, cctx);
+            cctx.fill();
+          }
+        }
+
+        // パス2: 各エリアの本体テクスチャ塗り
+        for (const a of overlapping) {
+          const col = a.color || (typeof MapData !== "undefined" && MapData.GROUND_KINDS && MapData.GROUND_KINDS[a.kind] && MapData.GROUND_KINDS[a.kind].color) || "#8fca7a";
+          const pat = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+            ? Assets.getGroundPattern(cctx, a.kind, col)
+            : col;
+
+          if (a.shape === "circle") {
+            cctx.fillStyle = pat;
+            cctx.beginPath();
+            cctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+            cctx.fill();
+          } else {
+            const rad = Math.min(18, a.w / 2, a.h / 2);
+            cctx.fillStyle = pat;
+            roundRect(a.x, a.y, a.w, a.h, rad, cctx);
+            cctx.fill();
+          }
+        }
+
+        areaChunks.push({ x: cx, y: cy, w: cw, h: ch, canvas: cvs });
+      }
+    }
+    return areaChunks;
+  }
+
   // あるける じめんを 色・テクスチャちがいで ぬる（world.areas がある ときだけ）
   function drawAreas(ox, oy) {
     const areas = (G.world && G.world.areas) || [];
     if (!areas.length) return;
+
+    const chunks = getAreaChunks();
+    if (chunks) {
+      for (const ch of chunks) {
+        if (ch.x + ox + ch.w < 0 || ch.x + ox > viewW) continue;
+        if (ch.y + oy + ch.h < 0 || ch.y + oy > viewH) continue;
+        ctx.drawImage(ch.canvas, ch.x + ox, ch.y + oy);
+      }
+      return;
+    }
 
     ctx.save();
     ctx.translate(ox, oy);
@@ -3093,14 +3205,15 @@
     ctx.fillText(name, x, y);
   }
 
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+  function roundRect(x, y, w, h, r, targetCtx) {
+    const c = targetCtx || ctx;
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
   }
 
   // ---- メインループ ----
@@ -3326,6 +3439,10 @@
       warmUp: () => Bgm.warmUp(),
       TRACKS: Bgm.TRACKS,
     },
+    // バーチャルジョイスティック入力（-1.0〜+1.0）
+    setStick: (x, y) => {
+      G.stick = { x: Number(x) || 0, y: Number(y) || 0 };
+    },
     // つづきが あるか（スタート画面で つかう）
     hasSave: () => !!loadSave(),
     eraseSave: () => clearSave(),
@@ -3391,6 +3508,7 @@
     G.isCustomMap = true;
 
     // 地形・障害物・装飾パーツを即座に更新
+    invalidateAreaChunks();
     G.world = currentStage.world;
     G.obstacles = (currentStage.obstacles || []).map((o) => ({ ...o }));
     G.decorations = (currentStage.decorations || []).map((d) => ({ ...d }));

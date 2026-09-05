@@ -176,21 +176,69 @@ canvas#game {
   color: #aaa;
 }
 
-/* ===== ほうこうボタン（バーチャルキー） ===== */
-#dpad {
+/* ===== バーチャルジョイスティック（スライドパッド） ===== */
+.joystick-container {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
-  width: 150px;
-  height: 150px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 6px;
+  left: 20px;
+  bottom: 20px;
+  width: 140px;
+  height: 140px;
   z-index: 25;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
+.joystick-base {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, rgba(220, 240, 220, 0.2) 65%, rgba(60, 110, 70, 0.3) 100%);
+  border: 3px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+.joystick-arrow {
+  position: absolute;
+  font-size: 13px;
+  color: rgba(45, 85, 55, 0.55);
+  font-weight: bold;
+  pointer-events: none;
+  user-select: none;
+}
+.joystick-arrow.up { top: 6px; }
+.joystick-arrow.down { bottom: 6px; }
+.joystick-arrow.left { left: 8px; }
+.joystick-arrow.right { right: 8px; }
+
+.joystick-knob {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 10%, #e2f2de 75%, #9bc298 100%);
+  border: 2.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.28), inset 0 1px 3px rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  transform: translate(0px, 0px);
+  will-change: transform;
+  transition: transform 0.08s ease-out, background 0.15s ease;
+}
+
+.joystick-knob.active {
+  background: radial-gradient(circle, #fff7d6 10%, #f4a03c 80%, #d47e20 100%);
+  border-color: #ffe082;
+  box-shadow: 0 2px 8px rgba(244, 160, 60, 0.5);
+  transition: none; /* ドラッグ中は遅延なしで瞬時に追従 */
+}
+
+/* 旧dbtn互換（テストや万が一のフォールバック用） */
 .dbtn {
   border: none;
   border-radius: 14px;
@@ -204,30 +252,9 @@ canvas#game {
   touch-action: none;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
 }
-
-.dbtn:active,
-.dbtn.pressed {
+.dbtn:active, .dbtn.pressed {
   background: rgba(244, 160, 60, 0.9);
   color: #fff;
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
-}
-
-.dbtn.up {
-  grid-column: 2;
-  grid-row: 1;
-}
-.dbtn.left {
-  grid-column: 1;
-  grid-row: 2;
-}
-.dbtn.right {
-  grid-column: 3;
-  grid-row: 2;
-}
-.dbtn.down {
-  grid-column: 2;
-  grid-row: 3;
 }
 
 /* ===== こうげきボタン（けん など。もっている ものだけ ならぶ）===== */

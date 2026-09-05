@@ -60,12 +60,15 @@
       <div class="dialogue-more">▼ タップでつぎへ</div>
     </div>
 
-    <!-- ほうこうボタン（バーチャルキー） -->
-    <div id="dpad">
-      <button class="dbtn up" data-dir="ArrowUp" aria-label="うえ">▲</button>
-      <button class="dbtn left" data-dir="ArrowLeft" aria-label="ひだり">◀</button>
-      <button class="dbtn right" data-dir="ArrowRight" aria-label="みぎ">▶</button>
-      <button class="dbtn down" data-dir="ArrowDown" aria-label="した">▼</button>
+    <!-- バーチャルジョイスティック（上下左右・斜めに指で動かせるスライドパッド） -->
+    <div id="joystick" class="joystick-container" aria-label="いどうパッド">
+      <div class="joystick-base">
+        <span class="joystick-arrow up">▲</span>
+        <span class="joystick-arrow left">◀</span>
+        <span class="joystick-arrow right">▶</span>
+        <span class="joystick-arrow down">▼</span>
+        <div class="joystick-knob"></div>
+      </div>
     </div>
 
     <!-- けん（こうげき）。もっている ものだけ ここに ふえる -->
