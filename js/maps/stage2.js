@@ -4,6 +4,7 @@ window.MAPS = window.MAPS || {};
 window.MAPS["stage2"] = /*MAPDATA*/{
  "name": "stage2",
  "title": "ささやきの谷",
+ "updatedAt": 2000000000000,
  "world": {
   "width": 2200,
   "height": 1800,
@@ -82,11 +83,6 @@ window.MAPS["stage2"] = /*MAPDATA*/{
    "x": 1400,
    "y": 1040,
    "sprite": "🌼"
-  },
-  {
-   "x": 1120,
-   "y": 600,
-   "sprite": "🕸️"
   }
  ],
  "markers": [
@@ -130,49 +126,58 @@ window.MAPS["stage2"] = /*MAPDATA*/{
    "speed": 44,
    "patrolRange": 90,
    "walk": true
+  },
+  {
+   "id": "s2e2",
+   "x": 1360,
+   "y": 880,
+   "sprite": "🕷️",
+   "size": 58,
+   "name": "シャドウスパイダー",
+   "remember": true,
+   "maxHp": 15,
+   "attack": 2,
+   "behavior": "shooter",
+   "speed": 35,
+   "shootInterval": 2.2,
+   "shootRange": 260,
+   "bulletType": "web",
+   "bulletSpeed": 140,
+   "walk": true,
+   "walkKey": "spider"
+  },
+  {
+   "id": "s2e3",
+   "x": 980,
+   "y": 780,
+   "sprite": "🦇",
+   "size": 56,
+   "name": "ヤミコウモリ",
+   "remember": true,
+   "maxHp": 12,
+   "attack": 2,
+   "behavior": "chase",
+   "speed": 60,
+   "sight": 200,
+   "walk": true,
+   "walkKey": "bat"
   }
  ],
  "npcs": [
   {
    "id": "s2n1",
-   "x": 1120,
+   "x": 1140,
    "y": 660,
    "sprite": "🕸️",
-   "name": "クモの す",
-   "r": 46,
+   "name": "クモのす（妖精ベル）",
+   "r": 50,
    "ifNot": "pikaJoined",
    "set": "pikaJoined",
    "lines": [
-    "…きゃあっ！ ちょっと、そこの アンタ！",
-    "見てないで さっさと 助けなさいよ！",
-    "（クモの巣に、小さな 妖精が ひっかかって いる）",
-    "リイコは 剣で そっと 巣を 切った。"
-   ]
-  },
-  {
-   "id": "s2n2",
-   "x": 1200,
-   "y": 660,
-   "sprite": "🧚",
-   "name": "妖精の ベル",
-   "if": "pikaJoined",
-   "r": 40,
-   "variants": [
-    {
-     "minTalks": 2,
-     "lines": [
-      "アタシの ヒントは 一級品なんだから、感謝しなさいよね！",
-      "こまったら すぐ 💡 を おすのよ、リイコ！"
-     ]
-    },
-    {
-     "lines": [
-      "ふん、やっと 出られたわ！ …ま、一応 お礼は 言っておくわね。アタシは ベル！",
-      "え？ やみのしろへ 行きたいの？ ふふっ…あいつらの アジトなら よーく 知ってるわ。",
-      "アタシを 裏切って 置き去りに したこと、ぜったい 後悔させて やるんだから！",
-      "道案内して あげるから、アタシを 連れていきなさい！ こまったら 💡ボタンよ！"
-     ]
-    }
+    "…きゃあっ！ ちょっと、そこの アンタ！ 見てないで さっさと 助けなさいよ！",
+    "（リイコは 剣で クモの巣を 切り裂いた！）",
+    "ふん、助けてくれて感謝してるわよ！",
+    "何、あいつらのところに行くの？よし、私もついてくわ。"
    ]
   }
  ],

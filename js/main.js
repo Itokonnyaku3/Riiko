@@ -20,6 +20,9 @@
   const newBtn = document.getElementById("gate-new");
   const errEl = document.getElementById("gate-error");
   const titleBtn = document.getElementById("btn-title");
+  const soundBtn = document.getElementById("btn-sound");
+  const editorBadge = document.getElementById("gate-editor-badge");
+  const editorResetBtn = document.getElementById("gate-editor-reset");
 
   const STORAGE_KEY = "riiko_ok";
 
@@ -27,6 +30,17 @@
   function begin(stageId, cont) {
     gate.style.display = "none";
     window.RiikoGame.start(stageId || null, { continue: !!cont });
+  }
+
+  // エディタマップ連携バッジの更新
+  function updateEditorBadge() {
+    if (!editorBadge) return;
+    const stageId = stageSelect ? stageSelect.value : "stage1";
+    if (window.RiikoGame.hasEditedMap && window.RiikoGame.hasEditedMap(stageId)) {
+      editorBadge.classList.remove("hidden");
+    } else {
+      editorBadge.classList.add("hidden");
+    }
   }
 
   // ステージ選択ドロップダウンの更新
@@ -58,12 +72,26 @@
         contBtn.classList.add("hidden");
       }
     }
+    updateEditorBadge();
   }
 
-  // 認証画面の表示
+  // 認証・スタート画面の表示
   function showAuth() {
     if (authArea) authArea.classList.remove("hidden");
-    if (menuArea) menuArea.classList.add("hidden");
+    if (menuArea) menuArea.classList.remove("hidden"); // 面選択ボックスも表示して選択可能にする
+    populateStageSelect();
+
+    const save = window.RiikoGame.getSaveInfo ? window.RiikoGame.getSaveInfo() : null;
+    if (contBtn) {
+      if (save) {
+        contBtn.textContent = "▶ つづきから（" + save.title + "）";
+        contBtn.classList.remove("hidden");
+        if (stageSelect) stageSelect.value = save.stageId;
+      } else {
+        contBtn.classList.add("hidden");
+      }
+    }
+    updateEditorBadge();
     if (input) setTimeout(() => input.focus(), 200);
   }
 
@@ -105,6 +133,24 @@
     });
   }
 
+  // 面の選択が変わったらエディタ連携バッジを更新
+  if (stageSelect) {
+    stageSelect.addEventListener("change", updateEditorBadge);
+  }
+
+  // エディタ連携マップのリセット（元のマップに戻す）
+  if (editorResetBtn) {
+    editorResetBtn.addEventListener("click", () => {
+      const selected = stageSelect ? stageSelect.value : "stage1";
+      if (confirm("エディタで編集したマップデータをリセットして、元のマップに戻しますか？")) {
+        if (window.RiikoGame.clearEditedMap) {
+          window.RiikoGame.clearEditedMap(selected);
+        }
+        updateEditorBadge();
+      }
+    });
+  }
+
   // 最初からやりなおす（1面）
   if (newBtn) {
     newBtn.addEventListener("click", () => {
@@ -119,6 +165,23 @@
       if (window.RiikoGame.stop) window.RiikoGame.stop();
       gate.style.display = "flex";
       showMenu();
+    });
+  }
+
+  // BGM（音楽）のオン・オフ切り替え
+  function updateSoundBtn() {
+    if (!soundBtn) return;
+    const on = window.RiikoGame && window.RiikoGame.bgm ? window.RiikoGame.bgm.isOn() : true;
+    soundBtn.textContent = on ? "🎵" : "🔇";
+    soundBtn.title = on ? "BGM: オン（タップで消音）" : "BGM: ミュート（タップで再生）";
+  }
+
+  if (soundBtn) {
+    soundBtn.addEventListener("click", () => {
+      if (window.RiikoGame && window.RiikoGame.bgm) {
+        window.RiikoGame.bgm.toggle();
+        updateSoundBtn();
+      }
     });
   }
 
@@ -158,7 +221,26 @@
     }
   }
 
-  if (sessionOk()) {
+  // 起動時の初期化
+  populateStageSelect();
+  updateEditorBadge();
+  updateSoundBtn();
+
+  const params = typeof window !== "undefined" && window.location ? new URLSearchParams(window.location.search) : null;
+  if (params && params.get("autostart") === "1") {
+    begin(params.get("stage") || "stage1", false);
+    const px = params.get("px"), py = params.get("py");
+    if (px != null && py != null && window.RiikoGame && window.RiikoGame._test) {
+      window.RiikoGame._test.state.player.x = Number(px);
+      window.RiikoGame._test.state.player.y = Number(py);
+      window.RiikoGame._test.state.cam.x = Number(px);
+      window.RiikoGame._test.state.cam.y = Number(py);
+    }
+    const flag = params.get("flag");
+    if (flag && window.RiikoGame && window.RiikoGame._test) {
+      window.RiikoGame._test.state.flags[flag] = true;
+    }
+  } else if (sessionOk()) {
     showMenu();
   } else {
     showAuth();

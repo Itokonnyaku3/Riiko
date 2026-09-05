@@ -119,7 +119,21 @@
       solved: () => {
         [523, 659, 784, 1046].forEach((f, i) => tone("sine", f, f, 0.16, 0.12, i * 0.09));
       },
+      join: () => {
+        // 明るく華やかな仲間加入ファンファーレ
+        const notes = [
+          { f: 523.25, d: 0.12, t: 0.00 }, // C5
+          { f: 659.25, d: 0.12, t: 0.11 }, // E5
+          { f: 783.99, d: 0.12, t: 0.22 }, // G5
+          { f: 1046.50, d: 0.28, t: 0.33 }, // C6
+          { f: 880.00, d: 0.14, t: 0.48 }, // A5
+          { f: 1046.50, d: 0.48, t: 0.62 }, // C6
+        ];
+        notes.forEach((n) => tone("triangle", n.f, n.f, n.d, 0.16, n.t));
+        [1318.5, 1567.98, 2093].forEach((f, i) => tone("sine", f, f, 0.22, 0.09, 0.35 + i * 0.1));
+      },
       talk: () => { tone("sine", 620, 620, 0.05, 0.06); },
+      bounce: () => { tone("sine", 320, 540, 0.12, 0.12); noise(0.04, 0.04); },
     };
     return {
       play(name) {
@@ -128,6 +142,336 @@
       },
       toggle(v) { on = v; },
       warmUp() { ctx(); },
+      ctx() { return ctx(); },
+    };
+  })();
+
+  // =========================================================
+  //  BGM（WebAudio API による波形合成）
+  // =========================================================
+  const NOTE_SEMI = {
+    c: 0, "c#": 1, db: 1, d: 2, "d#": 3, eb: 3, e: 4, f: 5, "f#": 6, gb: 6,
+    g: 7, "g#": 8, ab: 8, a: 9, "a#": 10, bb: 10, b: 11
+  };
+  function noteToFreq(name) {
+    if (!name || name === "-" || name === ".") return 0;
+    const m = String(name).toLowerCase().match(/^([a-g][#b]?)([0-9])$/);
+    if (!m) return 0;
+    const semi = NOTE_SEMI[m[1]];
+    if (semi === undefined) return 0;
+    const oct = parseInt(m[2], 10);
+    const midi = (oct + 1) * 12 + semi;
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  const BGM_TRACKS = {
+    forest: {
+      bpm: 116,
+      subdiv: 2, // 1ステップ = 8分音符
+      totalSteps: 64,
+      melody: [
+        "C5", "-", "E5", "G5", "A5", "-", "G5", "-", "E5", "G5", "A5", "C6", "B5", "A5", "G5", "-",
+        "A5", "-", "C6", "-", "D6", "-", "C6", "-", "B5", "G5", "A5", "B5", "C6", "-", "-", "-",
+        "E5", "-", "D5", "E5", "G5", "-", "E5", "-", "D5", "-", "C5", "D5", "E5", "-", "D5", "-",
+        "C5", "-", "D5", "E5", "G5", "-", "A5", "-", "G5", "-", "E5", "D5", "C5", "-", "-", "-"
+      ],
+      harmony: [
+        "E4", "G4", "C5", "G4", "F4", "A4", "C5", "A4", "E4", "G4", "B4", "G4", "D4", "G4", "B4", "G4",
+        "F4", "A4", "C5", "A4", "F4", "A4", "D5", "A4", "G4", "B4", "D5", "B4", "E4", "G4", "C5", "-",
+        "G4", "C5", "E5", "C5", "E4", "G4", "C5", "G4", "F4", "A4", "C5", "A4", "G4", "B4", "D5", "B4",
+        "E4", "G4", "C5", "G4", "E4", "G4", "C5", "G4", "F4", "A4", "C5", "A4", "E4", "G4", "C5", "-"
+      ],
+      bass: [
+        "C3", "-", "C3", "-", "F2", "-", "F2", "-", "E2", "-", "E2", "-", "G2", "-", "G2", "-",
+        "F2", "-", "F2", "-", "D2", "-", "D2", "-", "G2", "-", "G2", "-", "C3", "-", "C3", "-",
+        "C3", "-", "C3", "-", "E2", "-", "E2", "-", "F2", "-", "F2", "-", "G2", "-", "G2", "-",
+        "C3", "-", "C3", "-", "C3", "-", "C3", "-", "G2", "-", "G2", "-", "C3", "-", "C3", "-"
+      ],
+      drum: [
+        "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h",
+        "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "s",
+        "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h",
+        "k", "h", "s", "h", "k", "h", "s", "h", "k", "h", "s", "h", "k", "k", "s", "h"
+      ]
+    },
+    valley: {
+      bpm: 96,
+      subdiv: 2,
+      totalSteps: 64,
+      melody: [
+        "D5", "-", "F5", "-", "A5", "-", "G5", "F5", "E5", "-", "G5", "-", "E5", "-", "D5", "-",
+        "F5", "-", "A5", "-", "C6", "-", "B5", "A5", "G5", "-", "A5", "-", "F5", "-", "E5", "-",
+        "D5", "E5", "F5", "G5", "A5", "-", "D6", "-", "C6", "-", "A5", "F5", "G5", "-", "A5", "-",
+        "F5", "-", "E5", "D5", "C5", "-", "E5", "-", "D5", "-", "-", "-", "-", "-", "-", "-"
+      ],
+      harmony: [
+        "F4", "A4", "D5", "A4", "F4", "A4", "D5", "A4", "E4", "G4", "C5", "G4", "E4", "G4", "C5", "G4",
+        "D4", "F4", "Bb4", "F4", "D4", "F4", "Bb4", "F4", "C4", "E4", "G4", "E4", "C4", "E4", "A4", "E4",
+        "F4", "A4", "D5", "A4", "F4", "A4", "F5", "A4", "E4", "G4", "C5", "G4", "E4", "G4", "C5", "G4",
+        "D4", "F4", "Bb4", "F4", "C4", "E4", "A4", "E4", "D4", "F4", "A4", "F4", "D4", "F4", "A4", "-"
+      ],
+      bass: [
+        "D2", "-", "D2", "-", "D2", "-", "D2", "-", "A1", "-", "A1", "-", "A1", "-", "A1", "-",
+        "Bb1", "-", "Bb1", "-", "Bb1", "-", "Bb1", "-", "F2", "-", "F2", "-", "A1", "-", "A1", "-",
+        "D2", "-", "D2", "-", "D2", "-", "D2", "-", "C2", "-", "C2", "-", "C2", "-", "C2", "-",
+        "Bb1", "-", "Bb1", "-", "A1", "-", "A1", "-", "D2", "-", "D2", "-", "D2", "-", "D2", "-"
+      ],
+      drum: [
+        "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "-",
+        "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "h",
+        "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "h", "-",
+        "k", "-", "h", "-", "k", "-", "h", "-", "k", "-", "-", "-", "-", "-", "-", "-"
+      ]
+    },
+    title: {
+      bpm: 88,
+      subdiv: 2,
+      totalSteps: 16,
+      melody: [
+        "C5", "-", "E5", "-", "G5", "-", "C6", "-", "A5", "-", "G5", "E5", "D5", "-", "C5", "-"
+      ],
+      harmony: [
+        "C4", "E4", "G4", "E4", "E4", "G4", "B4", "G4", "F4", "A4", "C5", "A4", "G4", "B4", "D5", "B4"
+      ],
+      bass: [
+        "C2", "-", "C2", "-", "E2", "-", "E2", "-", "F2", "-", "F2", "-", "G2", "-", "G2", "-"
+      ],
+      drum: []
+    }
+  };
+
+  const Bgm = (function () {
+    let currentTrackName = null;
+    let timerId = null;
+    let stepIndex = 0;
+    let nextStepTime = 0;
+    let masterGain = null;
+    let duckGain = null;
+    let isDucking = false;
+    let on = true;
+    try {
+      if (typeof localStorage !== "undefined") {
+        const v = localStorage.getItem("riiko_bgm_on");
+        if (v === "0") on = false;
+      }
+    } catch (e) {}
+
+    function getAudioCtx() {
+      return Sfx.ctx ? Sfx.ctx() : null;
+    }
+
+    function initNodes() {
+      const ac = getAudioCtx();
+      if (!ac) return;
+      if (!masterGain) {
+        masterGain = ac.createGain();
+        masterGain.gain.setValueAtTime(on ? 0.65 : 0.0001, ac.currentTime);
+        masterGain.connect(ac.destination);
+      }
+      if (!duckGain) {
+        duckGain = ac.createGain();
+        duckGain.gain.setValueAtTime(isDucking ? 0.28 : 1.0, ac.currentTime);
+        duckGain.connect(masterGain);
+      }
+    }
+
+    function playNote(ac, freq, time, dur, type, vol, filterFreq) {
+      if (!freq || freq <= 0) return;
+      initNodes();
+      if (!duckGain) return;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = type || "triangle";
+      osc.frequency.setValueAtTime(freq, time);
+
+      if (filterFreq) {
+        const flt = ac.createBiquadFilter();
+        flt.type = "lowpass";
+        flt.frequency.setValueAtTime(filterFreq, time);
+        gain.connect(flt);
+        flt.connect(duckGain);
+      } else {
+        gain.connect(duckGain);
+      }
+
+      const attack = Math.min(0.015, dur * 0.15);
+      const release = Math.min(0.05, dur * 0.35);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(vol, time + attack);
+      gain.gain.setValueAtTime(vol * 0.85, time + dur - release);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+      osc.connect(gain);
+      osc.start(time);
+      osc.stop(time + dur + 0.02);
+    }
+
+    function playNoise(ac, time, dur, vol) {
+      initNodes();
+      if (!duckGain) return;
+      const n = Math.floor(ac.sampleRate * dur);
+      if (n <= 0) return;
+      const buf = ac.createBuffer(1, n, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      let seed = 4321;
+      for (let i = 0; i < n; i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        d[i] = ((seed / 0x7fffffff) * 2 - 1) * (1 - i / n);
+      }
+      const s = ac.createBufferSource();
+      const g = ac.createGain();
+      s.buffer = buf;
+      g.gain.setValueAtTime(vol, time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      s.connect(g);
+      g.connect(duckGain);
+      s.start(time);
+      s.stop(time + dur + 0.01);
+    }
+
+    function playDrum(ac, type, time) {
+      if (type === "k") {
+        initNodes();
+        if (!duckGain) return;
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(110, time);
+        osc.frequency.exponentialRampToValueAtTime(32, time + 0.07);
+        g.gain.setValueAtTime(0.09, time);
+        g.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+        osc.connect(g);
+        g.connect(duckGain);
+        osc.start(time);
+        osc.stop(time + 0.09);
+      } else if (type === "h") {
+        playNoise(ac, time, 0.02, 0.02);
+      } else if (type === "s") {
+        playNoise(ac, time, 0.045, 0.04);
+      }
+    }
+
+    function schedule() {
+      if (!on || !currentTrackName) return;
+      const ac = getAudioCtx();
+      if (!ac) return;
+      const track = BGM_TRACKS[currentTrackName];
+      if (!track) return;
+
+      const stepSec = (60 / track.bpm) / (track.subdiv || 2);
+      const now = ac.currentTime;
+      if (nextStepTime < now) nextStepTime = now + 0.03;
+
+      while (nextStepTime < now + 0.25) {
+        const step = stepIndex;
+        // Melody
+        if (track.melody && track.melody[step]) {
+          const f = noteToFreq(track.melody[step]);
+          if (f > 0) playNote(ac, f, nextStepTime, stepSec * 0.92, "triangle", 0.10, 2400);
+        }
+        // Harmony
+        if (track.harmony && track.harmony[step]) {
+          const f = noteToFreq(track.harmony[step]);
+          if (f > 0) playNote(ac, f, nextStepTime, stepSec * 0.88, "sine", 0.055, 1800);
+        }
+        // Bass
+        if (track.bass && track.bass[step]) {
+          const f = noteToFreq(track.bass[step]);
+          if (f > 0) playNote(ac, f, nextStepTime, stepSec * 0.90, "triangle", 0.11, 480);
+        }
+        // Drum
+        if (track.drum && track.drum[step]) {
+          playDrum(ac, track.drum[step], nextStepTime);
+        }
+
+        stepIndex = (stepIndex + 1) % track.totalSteps;
+        nextStepTime += stepSec;
+      }
+    }
+
+    function startTimer() {
+      const ac = getAudioCtx();
+      if (!ac) return; // Node.js環境ではタイマーを動かさない
+      if (timerId) clearInterval(timerId);
+      timerId = setInterval(schedule, 35);
+      if (timerId && typeof timerId.unref === "function") timerId.unref();
+    }
+
+    return {
+      play(name, fadeSec) {
+        if (!BGM_TRACKS[name]) return;
+        if (currentTrackName === name && timerId) return;
+        currentTrackName = name;
+        stepIndex = 0;
+        const ac = getAudioCtx();
+        if (ac) {
+          initNodes();
+          nextStepTime = ac.currentTime + 0.05;
+          if (fadeSec && masterGain && on) {
+            masterGain.gain.setValueAtTime(0.0001, ac.currentTime);
+            masterGain.gain.linearRampToValueAtTime(0.65, ac.currentTime + fadeSec);
+          }
+        }
+        if (on) startTimer();
+      },
+      stop(fadeSec) {
+        currentTrackName = null;
+        if (timerId) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+        const ac = getAudioCtx();
+        if (ac && masterGain) {
+          if (fadeSec && on) {
+            masterGain.gain.linearRampToValueAtTime(0.0001, ac.currentTime + fadeSec);
+          } else {
+            masterGain.gain.setValueAtTime(0.0001, ac.currentTime);
+          }
+        }
+      },
+      duck(ducking) {
+        isDucking = !!ducking;
+        const ac = getAudioCtx();
+        if (ac && duckGain) {
+          const target = isDucking ? 0.30 : 1.0;
+          duckGain.gain.linearRampToValueAtTime(target, ac.currentTime + 0.25);
+        }
+      },
+      toggle() {
+        on = !on;
+        try {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem("riiko_bgm_on", on ? "1" : "0");
+          }
+        } catch (e) {}
+        const ac = getAudioCtx();
+        if (ac && masterGain) {
+          masterGain.gain.setValueAtTime(on ? 0.65 : 0.0001, ac.currentTime);
+        }
+        if (on) {
+          if (currentTrackName) {
+            const ac2 = getAudioCtx();
+            if (ac2) nextStepTime = ac2.currentTime + 0.05;
+            startTimer();
+          }
+        } else {
+          if (timerId) {
+            clearInterval(timerId);
+            timerId = null;
+          }
+        }
+        return on;
+      },
+      isOn() {
+        return on;
+      },
+      currentTrack() {
+        return currentTrackName;
+      },
+      warmUp() {
+        getAudioCtx();
+      },
+      TRACKS: BGM_TRACKS,
     };
   })();
 
@@ -204,6 +548,7 @@
     for (const v of list) {
       if (v.minTalks && talks < v.minTalks) continue;
       if (!condOk(v)) continue;
+      applySet(v, n);
       return v.lines;
     }
     return n.lines || [""];
@@ -236,6 +581,7 @@
     }
     G.cut = { steps: steps.slice(), i: -1, look: null, wait: 0, move: null };
     G.paused = true; // うごけない（見せ場だから）
+    Bgm.duck(true);
     nextCutStep();
   }
 
@@ -262,6 +608,7 @@
       const walkData =
         st.spawn.walk ||
         (st.spawn.walkKey && window.WALKS && window.WALKS[st.spawn.walkKey]) ||
+        (st.spawn.id && window.WALKS && window.WALKS[st.spawn.id]) ||
         (st.spawn.id && st.spawn.id.startsWith("mant") && window.WALKS && window.WALKS.kagemanto);
       a.walk = walkData ? loadWalk(walkData) : null;
       G.actors.push(a);
@@ -333,6 +680,7 @@
     G.cut = null;
     G.actors = [];
     G.paused = false;
+    Bgm.duck(false);
     saveGame();
   }
 
@@ -351,12 +699,13 @@
   //  ・ヒントを 言う（💡ボタン／こまった とき）
   //  ・ピンチに なると 薬を とりに 飛んで いって もどってくる
   function makeFairy(src, px, py) {
+    const s = src.size || 46;
     const f = {
       sprite: src.sprite || "🧚",
       name: src.name || "ベル",
-      size: src.size || 68,
-      x: px + 30,
-      y: py - 40,
+      size: s,
+      x: px + 36,
+      y: py - 50,
       bob: 0,
       // おしゃべり
       say: "", // いま 出て いる ふきだし
@@ -369,7 +718,7 @@
       lines: src.lines || {},
     };
     if (window.WALKS && window.WALKS.belle) {
-      initWalker(f, { walk: window.WALKS.belle, size: src.size || 68 }, 68);
+      initWalker(f, { walk: window.WALKS.belle, size: s }, s);
     }
     return f;
   }
@@ -449,8 +798,8 @@
     G.fairy = makeFairy(src, G.player.x, G.player.y);
     const btn = document.getElementById("btn-hint");
     if (btn) btn.classList.remove("hidden");
-    addFloater(G.player.x, G.player.y - 74, (src.name || "ベル") + "が なかまに なった！✨", "#ffe36b");
-    Sfx.play("solved");
+    addFloater(G.player.x, G.player.y - 74, (src.name || "ベル") + "が なかまに なった！✨", "#ffe36b", 3.2);
+    Sfx.play("join");
     speakFairy("アタシの案内、感謝しなさいよね！", 4);
     madeProgress();
   }
@@ -468,8 +817,34 @@
       tx = p.x + 140;
       ty = p.y - 160;
     } else {
-      tx = p.x + 34 + Math.sin(f.bob * 0.7) * 10;
-      ty = p.y - 46 + Math.sin(f.bob) * 7;
+      // 主人公の斜め後ろ・上空をふわふわと飛ぶ（主人公の体と重ならない距離感を維持）
+      const side = (p.dir === "left") ? 42 : (p.dir === "right" ? -42 : 38);
+      tx = p.x + side + Math.sin(f.bob * 0.7) * 8;
+      ty = p.y - 48 + Math.sin(f.bob) * 6;
+
+      // 主人公と近すぎるときは外側へソフトに離れる（重なり防止）
+      const dp = dist(f.x, f.y, p.x, p.y);
+      if (dp < 48 && dp > 0.1) {
+        tx += ((f.x - p.x) / dp) * (48 - dp);
+        ty += ((f.y - p.y) / dp) * (48 - dp);
+      }
+
+      // 敵が近づいたらひらりと身をかわす（敵回避挙動）
+      let fleeX = 0, fleeY = 0;
+      for (const e of G.enemies) {
+        if (!e.alive || e.hp <= 0) continue;
+        const ed = dist(f.x, f.y, e.x, e.y);
+        const dangerDist = 110;
+        if (ed < dangerDist && ed > 0.1) {
+          const force = ((dangerDist - ed) / dangerDist) * 75;
+          fleeX += ((f.x - e.x) / ed) * force;
+          fleeY += ((f.y - e.y) / ed) * force;
+        }
+      }
+      if (fleeX !== 0 || fleeY !== 0) {
+        tx += fleeX;
+        ty += fleeY;
+      }
     }
     const fdx = (tx - f.x) * Math.min(1, dt * 4.5);
     const fdy = (ty - f.y) * Math.min(1, dt * 4.5);
@@ -484,11 +859,34 @@
   function drawFairy(ox, oy) {
     const f = G.fairy;
     if (!f) return;
-    const fBob = Math.sin(f.bob) * 3;
-    if (!drawWalker(f, f.x + ox, f.y + oy + fBob, 0)) {
-      drawSprite(f.sprite, f.x + ox, f.y + oy + fBob, f.size);
+    const fBob = Math.sin(f.bob) * 3.5;
+    const fx = f.x + ox;
+    const fy = f.y + oy;
+
+    // 飛んでいるベルの「少し下」に追随する影（足元から離れた位置に落ちる影）
+    // 上下浮遊に合わせて影の大きさ・濃淡が自然に伸縮し、空中浮遊感を演出
+    const shadowDist = 26;
+    const shadowScale = clamp(1 - fBob * 0.08, 0.72, 1.28);
+    const shadowAlpha = clamp(0.18 - fBob * 0.025, 0.10, 0.24);
+    ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+    ctx.beginPath();
+    ctx.ellipse(
+      fx,
+      fy + shadowDist,
+      (f.size || 46) * 0.24 * shadowScale,
+      (f.size || 46) * 0.09 * shadowScale,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.fillStyle = "#000";
+
+    // ベル本体（足元の直接の影は消す）
+    if (!drawWalker(f, fx, fy + fBob, 0, { noShadow: true })) {
+      drawSprite(f.sprite, fx, fy + fBob, f.size);
     }
-    if (f.sayT > 0) drawBubble(f.say, f.x + ox, f.y + oy - (f.size ? f.size * 0.55 : 36));
+    if (f.sayT > 0) drawBubble(f.say, fx, fy + fBob - (f.size ? f.size * 0.55 : 36));
   }
 
   // ふきだし（ピカの ひとこと。かいわ まどは 出さない＝止まらない）
@@ -504,6 +902,118 @@
     ctx.fill();
     ctx.fillStyle = "#2b3a2f";
     ctx.fillText(text, bx, y);
+  }
+
+  // 2面：巨大なクモの巣に絡まる妖精ベルの描画
+  let trappedBelleWalker = null;
+  function getTrappedBelleWalker() {
+    if (!trappedBelleWalker && typeof window !== "undefined" && window.WALKS && window.WALKS.belle) {
+      trappedBelleWalker = {
+        walk: loadWalk(window.WALKS.belle),
+        size: 46,
+        dir: "down",
+        frame: 0,
+      };
+    }
+    return trappedBelleWalker;
+  }
+
+  function drawTrappedBelle(n, ox, oy) {
+    const cx = n.x + ox;
+    const cy = n.y + oy;
+    const webR = 62; // 直径124pxの大きなクモの巣
+
+    ctx.save();
+
+    // 1. 周囲の岩や壁に張られた頑丈な支持糸
+    const anchors = [
+      [-80, -55], [-90, 10], [-70, 65],
+      [80, -60], [90, 10], [75, 70],
+      [0, -85], [10, 85]
+    ];
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = "rgba(240, 245, 255, 0.65)";
+    for (const [ax, ay] of anchors) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + ax, cy + ay);
+      ctx.stroke();
+    }
+
+    // 2. 放射状の縦糸（12本）
+    const numSpokes = 12;
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(245, 248, 255, 0.85)";
+    for (let i = 0; i < numSpokes; i++) {
+      const ang = i * (Math.PI * 2 / numSpokes);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(ang) * webR, cy + Math.sin(ang) * webR);
+      ctx.stroke();
+    }
+
+    // 3. 同心円状の横糸（5重のリング、自然なたるみ）
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    for (let ring = 1; ring <= 5; ring++) {
+      const rDist = webR * (ring / 5);
+      ctx.beginPath();
+      for (let i = 0; i < numSpokes; i++) {
+        const a1 = i * (Math.PI * 2 / numSpokes);
+        const a2 = ((i + 1) % numSpokes) * (Math.PI * 2 / numSpokes);
+        const p1x = cx + Math.cos(a1) * rDist;
+        const p1y = cy + Math.sin(a1) * rDist;
+        const p2x = cx + Math.cos(a2) * rDist;
+        const p2y = cy + Math.sin(a2) * rDist;
+        const midX = (p1x + p2x) * 0.5;
+        const midY = (p1y + p2y) * 0.5;
+        const sagX = midX * 0.93 + cx * 0.07;
+        const sagY = midY * 0.93 + cy * 0.07;
+        if (i === 0) ctx.moveTo(p1x, p1y);
+        ctx.quadraticCurveTo(sagX, sagY, p2x, p2y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // 4. 絡まっているベル本体（羽ばたき・もがきアニメーション）
+    const now = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+    const struggleShake = Math.sin(now * 0.015) * 1.5;
+    const struggleFrame = Math.floor(now / 220) % 2;
+    const walker = getTrappedBelleWalker();
+
+    let drawnBelle = false;
+    if (walker) {
+      walker.frame = struggleFrame;
+      drawnBelle = drawWalker(walker, cx + struggleShake, cy + 4, 0);
+    }
+    if (!drawnBelle) {
+      drawSprite("🧚", cx + struggleShake, cy, 38);
+    }
+
+    // 5. ベルの体に巻き付いている前面の白い粘着糸
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.88)";
+    ctx.beginPath();
+    ctx.moveTo(cx - 24, cy - 10);
+    ctx.lineTo(cx + 20, cy + 12);
+    ctx.moveTo(cx - 18, cy + 15);
+    ctx.lineTo(cx + 22, cy - 8);
+    ctx.moveTo(cx - 20, cy - 2);
+    ctx.lineTo(cx + 18, cy + 1);
+    ctx.stroke();
+
+    // 糸の光る粘着粒
+    ctx.fillStyle = "#ffffff";
+    const dew = [[-12, -7], [8, 4], [-4, 10], [14, -5], [-18, 6]];
+    for (const [dx, dy] of dew) {
+      ctx.fillRect(cx + dx, cy + dy, 2, 2);
+    }
+
+    ctx.restore();
+
+    // 頭上のネームタグ（少し上部に表示）
+    drawNameTag(n.name, cx, cy - 54);
   }
 
   // =========================================================
@@ -565,19 +1075,30 @@
     void want;
   }
 
-  // ---- じょうけん（フラグ）を みたして いるか ----
-  //   シナリオに if:"◯◯" / ifNot:"◯◯" と 書くだけで 出しわけできる
+  // ---- じょうけん（フラグ・アイテム）を みたして いるか ----
+  //   シナリオに if:"◯◯" / ifNot:"◯◯" / requireItem:"◯◯" と 書くだけで 出しわけできる
   function condOk(o) {
     if (!o) return true;
     if (o.if && !G.flags[o.if]) return false;
     if (o.ifNot && G.flags[o.ifNot]) return false;
+    if (o.requireItem) {
+      const have = (G.items && G.items[o.requireItem]) || 0;
+      if (o.exactCount != null && have !== o.exactCount) return false;
+      if (o.exactItem != null && have !== o.exactItem) return false;
+      if (o.maxItem != null && have > o.maxItem) return false;
+      const need = o.itemCount || o.count || 1;
+      if (o.exactCount == null && o.exactItem == null && have < need) return false;
+    }
     return true;
   }
   // ---- フラグを 立てる（set:"◯◯" と 書く）----
-  function applySet(o) {
+  function applySet(o, n) {
     if (o && o.set) {
       G.flags[o.set] = true;
       madeProgress(); // 話が すすんだ ので ヒントの タイマーを もどす
+    }
+    if (o && o.resetTalks && n && n.id) {
+      G.talks[n.id] = 1;
     }
   }
 
@@ -607,6 +1128,9 @@
       invT: 0, // むてき じかん（つづけて 減らない）
       combo: 0, // 何はつめ か（1→2→3）
       comboT: 0, // つづけて ふったと みなす のこり 時間
+      knockX: 0,
+      knockY: 0,
+      knockT: 0,
     };
     initWalker(G.player, scenario.player, 68); // あるく絵（4方向×2まい）
     G.respawn = { x: scenario.player.x, y: scenario.player.y };
@@ -643,7 +1167,8 @@
         alive: true,
         atkCd: 0,
         shootCd: e.shootInterval ? e.shootInterval * 0.6 : 0,
-        phase: 0,
+        phase: Math.random() * Math.PI * 2, // 一人ひとり開始タイミングをずらす
+        phaseSpeed: 3.2 + Math.random() * 1.6, // 個体ごとの移動・アニメーション周期差
         home: { x: e.x, y: e.y },
         dummy: e.behavior === "dummy", // かかし＝うごかない・こうげきしない・こわれない
         touchCd: 0, // ぶつかって リイコに ダメージを あたえる 間かく
@@ -652,9 +1177,15 @@
         knockT: 0, // 斬られて うしろに さがる
         flashT: 0, // 斬られて 白く 光る
         attackedT: 9, // さいごに こうげきして から の 時間（ジャスト反げき用）
+        // 個別ランダム移動用
+        targetX: e.x,
+        targetY: e.y,
+        wanderT: 0.5 + Math.random() * 2.0, // 次の目的地決定タイマー
+        idleT: Math.random() * 1.5, // 立ち止まりタイマー
+        wanderSpeed: (e.speed || 35) * (0.85 + Math.random() * 0.3), // 個体ごとの歩行速度
         // 突進ネコ用
         chargeState: "wait", // wait → windup → dash → dizzy
-        chargeT: 0.6,
+        chargeT: 0.4 + Math.random() * 0.5,
         dashX: 0,
         dashY: 0,
       };
@@ -716,6 +1247,10 @@
   const walkCache = new Map(); // 同じ絵は 1回だけ よみこむ
   function loadWalk(paths) {
     if (!paths) return null;
+    if (typeof paths === "string" && typeof window !== "undefined" && window.WALKS && window.WALKS[paths]) {
+      paths = window.WALKS[paths];
+    }
+    if (!paths || typeof paths !== "object") return null;
     if (walkCache.has(paths)) return walkCache.get(paths);
     let set = {};
     for (const dir of WALK_DIRS) {
@@ -736,9 +1271,13 @@
 
   // キャラに あるく絵の じょうたいを もたせる
   function initWalker(ent, src, defaultSize) {
-    ent.walk = loadWalk(src.walk);
-    ent.size = src.size || defaultSize;
-    ent.dir = src.dir || "down"; // いま むいている ほうこう
+    let walkPaths = src ? (src.walkKey && typeof window !== "undefined" && window.WALKS ? window.WALKS[src.walkKey] : src.walk) : null;
+    if (typeof walkPaths === "string" && typeof window !== "undefined" && window.WALKS) {
+      walkPaths = window.WALKS[walkPaths];
+    }
+    ent.walk = loadWalk(walkPaths);
+    ent.size = (src && src.size) || defaultSize;
+    ent.dir = (src && src.dir) || "down"; // いま むいている ほうこう
     ent.frame = 0; // いま出している コマ（0＝立ち / 1＝ふみだし）
     ent.animT = 0; // コマを 切りかえるまでの 時間かせぎ
   }
@@ -771,8 +1310,9 @@
   function clamp(v, min, max) {
     return v < min ? min : v > max ? max : v;
   }
-  function addFloater(x, y, text, color) {
-    G.floaters.push({ x, y, text, color: color || "#fff", life: 0.9 });
+  function addFloater(x, y, text, color, duration) {
+    const life = duration || (text && text.length > 5 ? 3.0 : 1.0);
+    G.floaters.push({ x, y, text, color: color || "#fff", life: life, maxLife: life });
   }
 
   // ---- しょうがいぶつ：めりこみを外に押し出す（スライドできる） ----
@@ -1177,6 +1717,16 @@
       if (p.comboT <= 0) p.combo = 0; // 間が あいたら 1はつめに もどる
     }
 
+    // 敵や被弾によるノックバック／バウンス移動
+    if (p.knockT > 0) {
+      p.knockT -= dt;
+      p.x += p.knockX * dt;
+      p.y += p.knockY * dt;
+      p.knockX *= 0.82;
+      p.knockY *= 0.82;
+      resolveObstacles(p, PLAYER_R);
+    }
+
     // 主人公は キーボード／ほうこうボタン だけで うごく
     if (kx || ky) {
       const len = Math.sqrt(kx * kx + ky * ky) || 1;
@@ -1190,6 +1740,21 @@
       advanceWalk(p, dt, kx, ky); // あるく絵の むき・コマ
     } else {
       advanceWalk(p, dt, 0, 0); // とまったら 立ちの 絵
+    }
+
+    // 他のキャラクター（NPC）との重なり防止（話しかけ距離30より少し狭い24pxで自然に押し戻す）
+    for (const n of G.npcs) {
+      if (!condOk(n)) continue;
+      const dx = p.x - n.x;
+      const dy = p.y - n.y;
+      const d = Math.hypot(dx, dy);
+      const minNpcDist = 24;
+      if (d < minNpcDist && d > 0.001) {
+        const overlap = minNpcDist - d;
+        p.x += (dx / d) * overlap;
+        p.y += (dy / d) * overlap;
+        resolveObstacles(p, PLAYER_R);
+      }
     }
 
     p.x = clamp(p.x, 20, G.world.width - 20);
@@ -1245,12 +1810,90 @@
     } catch (e) {}
   }
 
+  // 安全な初期位置を探す（障害物に埋まらないようにする）
+  function findSafeSpawn(sc) {
+    const px = (sc && sc.player && sc.player.x != null) ? sc.player.x : 1400;
+    const py = (sc && sc.player && sc.player.y != null) ? sc.player.y : 4400;
+    if (isSafePosition(px, py, PLAYER_R)) {
+      return { x: px, y: py };
+    }
+    const areas = (sc && sc.world && sc.world.areas) || [];
+    for (const a of areas) {
+      const cx = a.shape === "circle" ? a.x : Math.round(a.x + (a.w || 0) / 2);
+      const cy = a.shape === "circle" ? a.y : Math.round(a.y + (a.h || 0) / 2);
+      if (isSafePosition(cx, cy, PLAYER_R)) {
+        return { x: cx, y: cy };
+      }
+    }
+    return { x: px, y: py };
+  }
+
   // 面を よみこんで はじめる
   function goToStage(id, opts) {
-    const sc = window.STAGES[id];
+    let sc = window.STAGES && window.STAGES[id];
+    if (!sc && window.MAPS && window.MAPS[id] && typeof MapData !== "undefined" && MapData.build) {
+      // 自動フォールバック：MAPS から STAGES を自動構築（誤って js/stages/ にマップデータを保存した場合の救済）
+      const MAP = MapData.build(window.MAPS[id]);
+      const PLAYER_WALK = (window.WALKS && window.WALKS.player) || null;
+      const ENEMY_WALK = (window.WALKS && window.WALKS.enemy) || null;
+      const enemiesWithWalk = (MAP.enemies || []).map((e) => {
+        if (e.walk && ENEMY_WALK) return { ...e, walk: ENEMY_WALK };
+        return { ...e };
+      });
+      window.STAGES = window.STAGES || {};
+      window.STAGES[id] = {
+        title: MAP.title || (id === "stage1" ? "1面 はじまりの森" : id),
+        next: id === "stage1" ? "stage2" : (id === "stage2" ? "stage3" : null),
+        world: MAP.world,
+        obstacles: MAP.obstacles,
+        decorations: MAP.decorations,
+        player: {
+          x: MAP.player ? MAP.player.x : 1200,
+          y: MAP.player ? MAP.player.y : 4120,
+          maxHp: 3,
+          attack: 5,
+          sprite: "👧",
+          walk: PLAYER_WALK,
+        },
+        partner: null,
+        intro: MAP.intro,
+        npcs: MAP.npcs,
+        enemies: enemiesWithWalk,
+        gates: MAP.gates || [],
+        triggers: MAP.triggers,
+        chests: MAP.chests,
+        checkpoints: MAP.checkpoints,
+        hints: MAP.hints,
+        exit: MAP.exit,
+      };
+      sc = window.STAGES[id];
+    }
     if (!sc) return false;
     G.stageId = id;
+
+    // ★マップエディタで編集されたデータがあれば自動適用する
+    if (typeof MapData !== "undefined" && MapData.getEditedMap) {
+      const edited = MapData.getEditedMap(id);
+      if (edited) {
+        MapData.applyMapToStage(sc, edited);
+        G.isCustomMap = true;
+      } else {
+        G.isCustomMap = false;
+      }
+    }
+
     setup(sc);
+    const bgmTrack = id === "stage2" ? "valley" : "forest";
+    Bgm.play(bgmTrack, 0.6);
+
+    // ★初期位置が障害物にめり込んでいる場合の安全策
+    if (!isSafePosition(G.player.x, G.player.y, PLAYER_R)) {
+      const safe = findSafeSpawn(sc);
+      G.player.x = safe.x;
+      G.player.y = safe.y;
+      G.respawn = { x: safe.x, y: safe.y };
+    }
+
     if (opts && opts.respawn) {
       // セーブから もどす ときは 前の ばしょへ
       G.player.x = opts.respawn.x;
@@ -1258,9 +1901,10 @@
       G.respawn = { x: opts.respawn.x, y: opts.respawn.y };
       // ★復帰地点が障害物にめり込んでいる場合は、安全な初期位置へ戻す（フェイルセーフ）
       if (!isSafePosition(G.player.x, G.player.y, PLAYER_R)) {
-        G.player.x = sc.player.x;
-        G.player.y = sc.player.y;
-        G.respawn = { x: sc.player.x, y: sc.player.y };
+        const safe = findSafeSpawn(sc);
+        G.player.x = safe.x;
+        G.player.y = safe.y;
+        G.respawn = { x: safe.x, y: safe.y };
       }
     }
     G.titleText = sc.title || "";
@@ -1277,9 +1921,9 @@
 
   // 出口 → つぎの 面へ
   function goNextStage() {
-    const sc = window.STAGES[G.stageId];
-    const next = sc && sc.next;
-    if (next && window.STAGES[next]) {
+    const sc = (window.STAGES && window.STAGES[G.stageId]) || (window.MAPS && window.MAPS[G.stageId]);
+    const next = (sc && sc.next) || (G.stageId === "stage1" ? "stage2" : (G.stageId === "stage2" ? "stage3" : null));
+    if (next) {
       goToStage(next);
     } else {
       Dialogue.open("おしまい", [
@@ -1307,6 +1951,11 @@
         madeProgress();
         applySet(c);
         if (c.key) G.items[c.key] = (G.items[c.key] || 0) + 1;
+        if (Array.isArray(c.keys)) {
+          for (const k of c.keys) {
+            G.items[k] = (G.items[k] || 0) + 1;
+          }
+        }
         addFloater(c.x, c.y - 40, "たからばこ！", "#ffd76b");
         Sfx.play("chest");
         saveGame();
@@ -1347,9 +1996,11 @@
       if (near && !n._inside) {
         n._inside = true;
         G.talks[n.id] = (G.talks[n.id] || 0) + 1;
-        applySet(n);
         Sfx.play("talk");
-        Dialogue.open(n.name, pickLines(n));
+        Dialogue.open(n.name, pickLines(n), () => {
+          applySet(n);
+          saveGame();
+        });
         return;
       }
       if (!near) n._inside = false;
@@ -1386,7 +2037,7 @@
         c._done = true;
         madeProgress();
         G.respawn = { x: c.x, y: c.y };
-        addFloater(c.x, c.y - 40, "ここから やりなおせるよ", "#9fd");
+        addFloater(c.x, c.y - 40, "ここから やりなおせるよ", "#9fd", 3.2);
         saveGame();
       }
     }
@@ -1512,7 +2163,7 @@
     const p = G.player;
     for (const e of G.enemies) {
       if (!e.alive) continue;
-      e.phase += dt * 4;
+      e.phase += dt * (e.phaseSpeed || 4);
       if (e.flashT > 0) e.flashT -= dt;
       if (e.touchCd > 0) e.touchCd -= dt;
       e.attackedT += dt; // こうげきして から の 時間（ジャスト反げき用）
@@ -1527,18 +2178,64 @@
         resolveObstacles(e, ENEMY_R);
       }
 
-      // かかしは うごかない・こうげきしない
-      if (e.dummy) continue;
+      // 主人公との衝突・重なり防止およびバウンス
+      const foeR = e.dummy ? 20 : (e.size ? e.size * 0.26 : ENEMY_R);
+      const minD = PLAYER_R + foeR;
+      let dx = p.x - e.x;
+      let dy = p.y - e.y;
+      let d = Math.hypot(dx, dy);
 
-      // リイコに ぶつかると ダメージ
-      //   ★目を まわして いる あいだは あんぜん（せっかくの チャンスなので）
-      if (e.chargeState === "dizzy") e.touchCd = Math.max(e.touchCd, 0.2);
-      if (dist(e.x, e.y, p.x, p.y) < PLAYER_R + ENEMY_R && e.touchCd <= 0) {
-        e.touchCd = 1.0;
-        e.attackedT = 0; // ★この あと 0.45びょうが ジャスト反げきの チャンス
-        G.lastFoe = e.id; // やられた とき「だれに」を おぼえる
-        damagePlayer(e.attack);
+      if (d < minD) {
+        if (d < 0.001) { dx = 0; dy = 1; d = 1; }
+        const nx = dx / d;
+        const ny = dy / d;
+        const overlap = minD - d;
+
+        if (e.dummy) {
+          // かかしは固定：プレイヤーを押し戻す
+          p.x += nx * overlap;
+          p.y += ny * overlap;
+          resolveObstacles(p, PLAYER_R);
+        } else {
+          // 通常敵：互いに押し合う
+          p.x += nx * overlap * 0.55;
+          p.y += ny * overlap * 0.55;
+          e.x -= nx * overlap * 0.45;
+          e.y -= ny * overlap * 0.45;
+          resolveObstacles(e, ENEMY_R);
+          resolveObstacles(p, PLAYER_R);
+        }
+
+        // バウンス（跳ね返りインパルス）
+        const bounceSpeed = 240;
+        if (p.knockT <= 0.06) {
+          p.knockX = nx * bounceSpeed;
+          p.knockY = ny * bounceSpeed;
+          p.knockT = 0.22;
+        }
+        if (!e.dummy && e.knockT <= 0.06) {
+          e.knockX = -nx * (bounceSpeed * 0.65);
+          e.knockY = -ny * (bounceSpeed * 0.65);
+          e.knockT = 0.20;
+        }
+
+        // 敵からのダメージ攻撃
+        if (e.chargeState === "dizzy") e.touchCd = Math.max(e.touchCd, 0.2);
+        if (!e.dummy && e.touchCd <= 0 && e.chargeState !== "dizzy") {
+          e.touchCd = 0.9;
+          e.attackedT = 0;
+          G.lastFoe = e.id;
+          damagePlayer(e.attack);
+        } else {
+          // ダメージを受けないバウンス時（無敵中・気絶中・かかしなど）のバウンス音
+          if (p.invT <= 0 || p.invT > 0.85) {
+            Sfx.play("bounce");
+          }
+        }
       }
+
+      // かかしは これ以上 うごかない・こうげきしない
+      if (e.dummy) continue;
 
       const engaged =
         !!pt &&
@@ -1567,24 +2264,97 @@
       // 弾を撃つタイプ（せっきん戦でも 撃つ）
       if (e.behavior === "shooter") updateShooter(e, dt, p);
     }
+
+    // 敵同士の重なり防止（お互いに適度に離れて団子状態を防ぐ）
+    for (let i = 0; i < G.enemies.length; i++) {
+      const e1 = G.enemies[i];
+      if (!e1.alive || e1.dummy) continue;
+      for (let j = i + 1; j < G.enemies.length; j++) {
+        const e2 = G.enemies[j];
+        if (!e2.alive || e2.dummy) continue;
+        const edx = e2.x - e1.x;
+        const edy = e2.y - e1.y;
+        const ed = Math.hypot(edx, edy);
+        const minSep = ENEMY_R * 1.8;
+        if (ed < minSep && ed > 0.001) {
+          const push = (minSep - ed) * 0.35;
+          const nx = edx / ed;
+          const ny = edy / ed;
+          e1.x -= nx * push;
+          e1.y -= ny * push;
+          e2.x += nx * push;
+          e2.y += ny * push;
+        }
+      }
+    }
   }
 
   function moveEnemy(e, dt, p) {
     if (e.behavior === "chase") {
       const d = dist(e.x, e.y, p.x, p.y);
       if (d < (e.sight || 240)) {
-        stepToward(e, p.x, p.y, e.speed || 50, dt, ENEMY_R, true);
+        // リイコを発見！追尾（個体ごとの位相による微小オフセットで一列重なりを防ぐ）
+        const offsetAngle = Math.sin(e.phase) * 0.35;
+        const cosO = Math.cos(offsetAngle),
+          sinO = Math.sin(offsetAngle);
+        const dx = p.x - e.x,
+          dy = p.y - e.y;
+        const tx = e.x + (dx * cosO - dy * sinO);
+        const ty = e.y + (dx * sinO + dy * cosO);
+        stepToward(e, tx, ty, e.speed || 50, dt, ENEMY_R, true);
       } else {
-        stepToward(e, e.home.x, e.home.y, (e.speed || 50) * 0.6, dt, ENEMY_R, true);
+        // リイコが見えないときは、巣の周りを気まぐれにうろつく
+        const dHome = dist(e.x, e.y, e.home.x, e.home.y);
+        if (dHome > (e.sight || 240) * 0.75) {
+          stepToward(e, e.home.x, e.home.y, (e.speed || 50) * 0.6, dt, ENEMY_R, true);
+        } else {
+          if (e.idleT > 0) {
+            e.idleT -= dt;
+            return;
+          }
+          e.wanderT = (e.wanderT || 0) - dt;
+          const dTarget = dist(e.x, e.y, e.targetX || e.x, e.targetY || e.y);
+          if (dTarget < 8 || e.wanderT <= 0) {
+            e.idleT = 0.8 + Math.random() * 1.6;
+            const angle = Math.random() * Math.PI * 2;
+            const distR = 15 + Math.random() * 50;
+            e.targetX = e.home.x + Math.cos(angle) * distR;
+            e.targetY = e.home.y + Math.sin(angle) * distR;
+            e.wanderT = 1.6 + Math.random() * 2.2;
+            return;
+          }
+          stepToward(e, e.targetX, e.targetY, (e.wanderSpeed || e.speed || 50) * 0.5, dt, ENEMY_R, true);
+        }
       }
     } else if (e.behavior === "patrol") {
       const r = e.patrolRange || 80;
-      const tx = e.home.x + Math.sin(e.phase * 0.5) * r;
-      const ty = e.home.y + Math.cos(e.phase * 0.35) * r * 0.5;
-      stepToward(e, tx, ty, e.speed || 35, dt, ENEMY_R, true);
+      // 立ち止まって周りを見回す（気まぐれな停止）
+      if (e.idleT > 0) {
+        e.idleT -= dt;
+        return;
+      }
+      e.wanderT = (e.wanderT || 0) - dt;
+      const dTarget = dist(e.x, e.y, e.targetX || e.x, e.targetY || e.y);
+      if (dTarget < 8 || e.wanderT <= 0) {
+        // 目的地到達または時間切れ：立ち止まり、次のランダム目的地を決定
+        e.idleT = 0.6 + Math.random() * 1.5;
+        const angle = Math.random() * Math.PI * 2;
+        const distR = 15 + Math.random() * Math.max(10, r - 15);
+        e.targetX = e.home.x + Math.cos(angle) * distR;
+        e.targetY = e.home.y + Math.sin(angle) * distR;
+        e.wanderT = 1.8 + Math.random() * 2.4;
+        return;
+      }
+      const moved = stepToward(e, e.targetX, e.targetY, e.wanderSpeed || e.speed || 35, dt, ENEMY_R, true);
+      // 障害物に当たって進めない時は早めに次の目的地へ切り替え
+      if (moved < 0.25 * (e.wanderSpeed || e.speed || 35) * dt) {
+        e.wanderT -= dt * 2.5;
+      }
     } else if (e.behavior === "shooter") {
-      const tx = e.home.x + Math.sin(e.phase * 0.3) * 20;
-      const ty = e.home.y + Math.cos(e.phase * 0.3) * 20;
+      const hx = e.home ? e.home.x : e.x;
+      const hy = e.home ? e.home.y : e.y;
+      const tx = hx + Math.sin((e.phase || 0) * 0.3) * 20;
+      const ty = hy + Math.cos((e.phase || 0) * 0.3) * 20;
       stepToward(e, tx, ty, e.speed || 18, dt, ENEMY_R, false);
     } else if (e.behavior === "charge") {
       moveCharger(e, dt, p);
@@ -1598,11 +2368,23 @@
     e.chargeT -= dt;
 
     if (e.chargeState === "wait") {
-      // うろうろ しながら リイコを さがす
-      const r = 40;
-      const tx = e.home.x + Math.sin(e.phase * 0.4) * r;
-      const ty = e.home.y + Math.cos(e.phase * 0.3) * r * 0.6;
-      stepToward(e, tx, ty, (e.speed || 60) * 0.4, dt, ENEMY_R, true);
+      // うろうろ しながら リイコを さがす（個別に気まぐれ徘徊）
+      if (e.idleT > 0) {
+        e.idleT -= dt;
+      } else {
+        e.wanderT = (e.wanderT || 0) - dt;
+        const dTarget = dist(e.x, e.y, e.targetX || e.x, e.targetY || e.y);
+        if (dTarget < 8 || e.wanderT <= 0) {
+          e.idleT = 0.5 + Math.random() * 1.2;
+          const angle = Math.random() * Math.PI * 2;
+          const distR = 10 + Math.random() * 35;
+          e.targetX = e.home.x + Math.cos(angle) * distR;
+          e.targetY = e.home.y + Math.sin(angle) * distR;
+          e.wanderT = 1.5 + Math.random() * 1.8;
+        } else {
+          stepToward(e, e.targetX, e.targetY, (e.speed || 60) * 0.4, dt, ENEMY_R, true);
+        }
+      }
       if (e.chargeT <= 0 && dist(e.x, e.y, p.x, p.y) < (e.sight || 260)) {
         e.chargeState = "windup";
         e.chargeT = e.windupSec || 0.8; // ためる 時間（よける ための ゆうよ）
@@ -1663,14 +2445,20 @@
         dy = p.y - e.y;
       const dd = Math.sqrt(dx * dx + dy * dy) || 1;
       const sp = e.bulletSpeed || 140;
+      const isSpider = e.walkKey === "spider" || e.sprite === "🕷️";
       G.bullets.push({
         x: e.x,
         y: e.y,
         vx: (dx / dd) * sp,
         vy: (dy / dd) * sp,
-        dmg: e.bulletDamage || 3,
+        dmg: e.bulletDamage || 1,
+        kind: isSpider ? "web" : (e.bulletKind || "normal"),
+        sprite: isSpider ? "🕸️" : e.bulletSprite,
+        color: e.bulletColor || "#ff5a5a",
+        r: e.bulletR || 7,
         life: 4,
       });
+      if (isSpider) Sfx.play("dash");
     }
   }
 
@@ -1701,17 +2489,24 @@
   // ---- 弾 ----
   function updateBullets(dt) {
     const pt = G.partner;
+    const p = G.player;
     for (const b of G.bullets) {
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
 
-      // あいぼうに当たる（主人公には当たらない＝やさしい設計）
+      // あいぼうに当たる
       if (pt && pt.state !== "rest" && dist(b.x, b.y, pt.x, pt.y) < CAT_R + 8) {
         pt.hp -= b.dmg;
         addFloater(pt.x, pt.y - 38, "-" + b.dmg, "#ff8f8f");
         b.life = 0;
         if (pt.hp <= 0) faint(pt);
+        continue;
+      }
+      // あいぼうがいない場合、リイコに当たる（無敵時間中はすり抜ける）
+      if (p && (!pt || pt.state === "rest") && p.invT <= 0 && G.downT <= 0 && dist(b.x, b.y, p.x, p.y) < PLAYER_R + 6) {
+        b.life = 0;
+        damagePlayer(b.dmg || 1);
         continue;
       }
       // 障害物に当たったら 消える
@@ -1734,7 +2529,7 @@
 
   function updateFloaters(dt) {
     for (const f of G.floaters) {
-      f.y -= 28 * dt;
+      f.y -= 18 * dt; // 文字が読めるようゆっくり浮かび上がる
       f.life -= dt;
     }
     G.floaters = G.floaters.filter((f) => f.life > 0);
@@ -1776,8 +2571,15 @@
     const ox = -G.cam.x + sx,
       oy = -G.cam.y + sy;
 
-    ctx.fillStyle = G.world.ground || "#8fca7a";
-    ctx.fillRect(0, 0, viewW, viewH);
+    // 背景の地面（テクスチャをワールド座標に固定して敷き詰める）
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.fillStyle = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+      ? Assets.getGroundPattern(ctx, G.world.ground, G.world.ground || "#4e7a44")
+      : (G.world.ground || "#8fca7a");
+    ctx.fillRect(-ox, -oy, viewW, viewH);
+    ctx.restore();
+
     drawAreas(ox, oy); // あるける じめん（マップ作成ツールで ぬった ところ）
     drawGrid();
 
@@ -1785,16 +2587,35 @@
     const onScreen = (x, y, m) =>
       x + ox > -m && x + ox < viewW + m && y + oy > -m && y + oy < viewH + m;
 
-    // かざり（ぶつからない）。size を 書くと 大きさを かえられる。
-    //   ※木と おなじ 大きさ(44)に すると「通り抜けできる森」が 作れる。
-    for (const d of G.decorations) {
-      if (onScreen(d.x, d.y, 40)) Assets.drawDeco(ctx, d.sprite, d.x + ox, d.y + oy, d.size || 30);
-    }
-
     // 立体物（木・岩・家・宝箱・扉・NPC・敵・プレイヤー等）：
     //   ★足元のY座標（baseY）でソートして描画することで、木の後ろに回ると自然に隠れ、
     //   手前に来ると手前に表示される（2.5D深度ソート）
     const renderables = [];
+
+    // かざり（ぶつからない）。
+    //   地面のかざり（草・花・小石など）は足元の下に描画。
+    //   木・葉のパーツ（tree-canopyなど）は立体物（renderables）として足元Yでソートし、
+    //   キャラクターが木の下を通ると自然に隠れるようにする。
+    for (const d of G.decorations) {
+      const def = Assets.def(d.sprite);
+      const isTree = def && (def.group === "tree" || (def.id && (def.id.startsWith("tree") || def.id.startsWith("fir"))));
+      const ds = d.size || (def && def.size) || 30;
+
+      if (!onScreen(d.x, d.y, 60)) continue;
+
+      if (isTree) {
+        // すり抜けられる木・葉のアーチ（キャラクターを隠す）
+        renderables.push({
+          baseY: d.y + ds * 0.45,
+          draw: () => {
+            Assets.drawDeco(ctx, d.sprite, d.x + ox, d.y + oy, ds);
+          },
+        });
+      } else {
+        // 地面のかざり（草・花・小石など）
+        Assets.drawDeco(ctx, d.sprite, d.x + ox, d.y + oy, ds);
+      }
+    }
 
     // しょうがいぶつ（かげ＋絵）
     for (const o of G.obstacles) {
@@ -1846,14 +2667,19 @@
     }
 
     for (const n of G.npcs) {
-      if (!onScreen(n.x, n.y, 40)) continue;
+      if (!condOk(n)) continue;
+      if (!onScreen(n.x, n.y, 80)) continue;
       renderables.push({
         baseY: n.y + (n.size ? n.size * 0.44 : 18),
         draw: () => {
-          if (!drawWalker(n, n.x + ox, n.y + oy, 0)) {
-            drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
+          if (n.id === "s2n1" || (n.sprite === "🕸️" && n.set === "pikaJoined")) {
+            drawTrappedBelle(n, ox, oy);
+          } else {
+            if (!drawWalker(n, n.x + ox, n.y + oy, 0)) {
+              drawSprite(n.sprite, n.x + ox, n.y + oy, 38);
+            }
+            drawNameTag(n.name, n.x + ox, n.y + oy - 34);
           }
-          drawNameTag(n.name, n.x + ox, n.y + oy - 34);
         },
       });
     }
@@ -1875,17 +2701,25 @@
       renderables.push({
         baseY: e.y + (e.dummy ? 24 : 16),
         draw: () => {
-          const bob = Math.sin(e.phase) * 3;
+          const isFloating = e.walkKey === "bat" || e.sprite === "🦇" || e.floating;
+          const bob = isFloating ? Math.sin(e.phase * 3.6) * 5 - 12 : Math.sin(e.phase) * 3;
+          let ex = e.x,
+            ey = e.y;
+          if (isFloating) {
+            ctx.fillStyle = "rgba(0,0,0,0.18)";
+            ctx.beginPath();
+            ctx.ellipse(ex + ox, ey + oy + 10, 16, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+          }
           // 斬られた しゅんかん 白く 光る
           if (e.flashT > 0) {
             ctx.fillStyle = "rgba(255,255,255,0.85)";
             ctx.beginPath();
-            ctx.arc(e.x + ox, e.y + oy + bob, 24, 0, Math.PI * 2);
+            ctx.arc(ex + ox, ey + oy + bob, 24, 0, Math.PI * 2);
             ctx.fill();
           }
-          // ★突進ネコ：いま 何を して いるか 見て わかるように する
-          let ex = e.x,
-            ey = e.y;
+          // ★突進：いま 何を して いるか 見て わかるように する
           if (e.behavior === "charge" && e.chargeState === "windup") {
             ex += Math.sin(e.phase * 9) * 4; // ぷるぷる ためて いる
           }
@@ -1894,7 +2728,7 @@
             e.frame = e.flashT > 0 ? 1 : 0;
             if (!drawWalker(e, ex + ox, ey + oy, 0)) drawSprite(e.sprite, ex + ox, ey + oy, 40);
             top = e.size * 0.5 + 4;
-          } else if (drawWalker(e, ex + ox, ey + oy, bob)) {
+          } else if (drawWalker(e, ex + ox, ey + oy, bob, { noShadow: isFloating })) {
             top = e.size * 0.5 + 6;
           } else {
             drawSprite(e.sprite, ex + ox, ey + oy + bob, 40);
@@ -1974,22 +2808,29 @@
 
     // 弾
     for (const b of G.bullets) {
-      ctx.fillStyle = "#ff5a5a";
-      ctx.strokeStyle = "rgba(0,0,0,0.3)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(b.x + ox, b.y + oy, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      if (b.sprite || b.kind === "web") {
+        drawSprite(b.sprite || "🕸️", b.x + ox, b.y + oy, 22);
+      } else {
+        ctx.fillStyle = b.color || "#ff5a5a";
+        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(b.x + ox, b.y + oy, b.r || 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
 
     drawFairy(ox, oy); // 仲間1 ピカ
     drawGuide(ox, oy); // ヒント3の 光る しるし
 
     for (const f of G.floaters) {
-      ctx.globalAlpha = clamp(f.life / 0.9, 0, 1);
+      const maxL = f.maxLife || 0.9;
+      const fadeIn = clamp((maxL - f.life) / 0.15, 0, 1);
+      const fadeOut = clamp(f.life / 0.5, 0, 1);
+      ctx.globalAlpha = Math.min(fadeIn, fadeOut);
       ctx.fillStyle = f.color;
-      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
       ctx.lineWidth = 3;
       ctx.font = "bold 20px system-ui, sans-serif";
       ctx.textAlign = "center";
@@ -2121,27 +2962,64 @@
     ctx.fillText(text, 25, 32);
   }
 
-  // あるける じめんを 色ちがいで ぬる（world.areas がある ときだけ）
+  // あるける じめんを 色・テクスチャちがいで ぬる（world.areas がある ときだけ）
   function drawAreas(ox, oy) {
     const areas = (G.world && G.world.areas) || [];
+    if (!areas.length) return;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    // パス1: 土の道・石畳の下に落とす柔らかな接地影（先にまとめて描画することで、道の内側に余分な影の弧が出ない）
+    ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
     for (const a of areas) {
-      ctx.fillStyle = a.color || "#8fca7a";
+      if (a.kind !== "dirt" && a.kind !== "stone" && a.kind !== "stone2") continue;
       if (a.shape === "circle") {
-        if (a.x + a.r + ox < 0 || a.x - a.r + ox > viewW) continue;
-        if (a.y + a.r + oy < 0 || a.y - a.r + oy > viewH) continue;
+        if (a.x + a.r + 4 < -ox || a.x - a.r - 4 > -ox + viewW) continue;
+        if (a.y + a.r + 4 < -oy || a.y - a.r - 4 > -oy + viewH) continue;
         ctx.beginPath();
-        ctx.arc(a.x + ox, a.y + oy, a.r, 0, Math.PI * 2);
+        ctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        if (a.x + a.w + ox < 0 || a.x + ox > viewW) continue;
-        if (a.y + a.h + oy < 0 || a.y + oy > viewH) continue;
-        roundRect(a.x + ox, a.y + oy, a.w, a.h, Math.min(18, a.w / 2, a.h / 2));
+        if (a.x + a.w + 4 < -ox || a.x - 4 > -ox + viewW) continue;
+        if (a.y + a.h + 4 < -oy || a.y - 4 > -oy + viewH) continue;
+        const rad = Math.min(18, a.w / 2, a.h / 2);
+        roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, rad + 2);
         ctx.fill();
       }
     }
+
+    // パス2: 各エリアの本体テクスチャ塗り
+    for (const a of areas) {
+      const col = a.color || (typeof MapData !== "undefined" && MapData.GROUND_KINDS && MapData.GROUND_KINDS[a.kind] && MapData.GROUND_KINDS[a.kind].color) || "#8fca7a";
+      const pat = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+        ? Assets.getGroundPattern(ctx, a.kind, col)
+        : col;
+
+      if (a.shape === "circle") {
+        if (a.x + a.r < -ox || a.x - a.r > -ox + viewW) continue;
+        if (a.y + a.r < -oy || a.y - a.r > -oy + viewH) continue;
+
+        ctx.fillStyle = pat;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        if (a.x + a.w < -ox || a.x > -ox + viewW) continue;
+        if (a.y + a.h < -oy || a.y > -oy + viewH) continue;
+        const rad = Math.min(18, a.w / 2, a.h / 2);
+
+        ctx.fillStyle = pat;
+        roundRect(a.x, a.y, a.w, a.h, rad);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
   }
 
   function drawGrid() {
+    if (!G.showGrid) return;
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     const size = 64;
@@ -2163,7 +3041,7 @@
   //   絵は 128×128 の 正方形で、キャラが 下に そろえて 入っています。
   //   なので (x, y) を まん中に して そのまま おけば ちょうど よい イチに なります。
   //   bob … ふわふわ うかせる ぶん（かげは じめんに のこす）
-  function drawWalker(ent, x, y, bob) {
+  function drawWalker(ent, x, y, bob, opts) {
     const set = ent.walk && ent.walk[ent.dir];
     const img = set && set[ent.frame];
     if (!img || !img.complete || !img.naturalWidth) return false;
@@ -2171,12 +3049,14 @@
     const s = ent.size;
     const footY = y - s / 2 + s * WALK_FOOT; // 足のうらの たかさ
 
-    // 足もとの かげ（ほかの しょうがいぶつと 同じ かんじ）
-    ctx.fillStyle = "rgba(0,0,0,0.15)";
-    ctx.beginPath();
-    ctx.ellipse(x, footY - 2, s * 0.22, s * 0.08, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#000"; // かげの うすい色を もどす（このあとの 絵文字が うすくならないように）
+    // 足もとの かげ（飛んでいるキャラなど noShadow のときは描かない）
+    if (!opts || !opts.noShadow) {
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.beginPath();
+      ctx.ellipse(x, footY - 2, s * 0.22, s * 0.08, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#000"; // かげの うすい色を もどす（このあとの 絵文字が うすくならないように）
+    }
 
     ctx.drawImage(img, x - s / 2, y - s / 2 + (bob || 0), s, s);
     return true;
@@ -2248,6 +3128,7 @@
       this.textEl.textContent = lines[0];
       this.box.classList.remove("hidden");
       G.paused = true;
+      Bgm.duck(true);
     },
     advance() {
       this.idx++;
@@ -2257,6 +3138,7 @@
     close() {
       this.box.classList.add("hidden");
       G.paused = false;
+      Bgm.duck(false);
       const cb = this.onClose;
       this.onClose = null;
       if (cb) cb();
@@ -2373,6 +3255,8 @@
         G.defeated = {};
         G.stageId = null;
         setup(scenario);
+        const bgmTrack = (scenario.id === "stage2" || scenario.name === "stage2") ? "valley" : "forest";
+        Bgm.play(bgmTrack, 0.6);
         G.titleText = scenario.title || "";
         G.titleT = 2.6;
       } else {
@@ -2413,7 +3297,7 @@
       const order = window.STAGE_ORDER || ["stage1", "stage2", "stage3", "stage4"];
       const list = [];
       for (const id of order) {
-        const sc = window.STAGES && window.STAGES[id];
+        const sc = (window.STAGES && window.STAGES[id]) || (window.MAPS && window.MAPS[id]);
         if (sc) {
           list.push({ id: id, title: sc.title || id });
         }
@@ -2424,17 +3308,41 @@
     getSaveInfo() {
       const s = loadSave();
       if (!s) return null;
-      const sc = window.STAGES && window.STAGES[s.stageId];
+      const sc = (window.STAGES && window.STAGES[s.stageId]) || (window.MAPS && window.MAPS[s.stageId]);
       return { stageId: s.stageId, title: (sc && sc.title) || s.stageId };
     },
     stop() {
       G.running = false;
+      Bgm.stop(0.4);
+    },
+    // BGM（音楽）のそうさ
+    bgm: {
+      play: (name, fadeSec) => Bgm.play(name, fadeSec),
+      stop: (fadeSec) => Bgm.stop(fadeSec),
+      duck: (v) => Bgm.duck(v),
+      toggle: () => Bgm.toggle(),
+      isOn: () => Bgm.isOn(),
+      currentTrack: () => Bgm.currentTrack(),
+      warmUp: () => Bgm.warmUp(),
+      TRACKS: Bgm.TRACKS,
     },
     // つづきが あるか（スタート画面で つかう）
     hasSave: () => !!loadSave(),
     eraseSave: () => clearSave(),
     setHelpMode: (v) => setHelpMode(v),
     isHelpMode: () => G.helpMode,
+    // マップエディタ連携
+    hasEditedMap: (id) => (typeof MapData !== "undefined" && typeof MapData.getEditedMap === "function" && !!MapData.getEditedMap(id)),
+    clearEditedMap: (id) => {
+      if (typeof MapData !== "undefined" && typeof MapData.clearEditedMap === "function") {
+        MapData.clearEditedMap(id);
+      }
+    },
+    reloadCurrentMap: () => {
+      if (G.stageId) {
+        goToStage(G.stageId, { respawn: G.respawn });
+      }
+    },
     // テスト用：手動で1フレーム進める／状態をのぞく（ふだんは使いません）
     _test: {
       state: G,
@@ -2469,6 +3377,174 @@
       fairySay: (t) => speakFairy(t, 3),
       killedBy: (id) => { G.lastFoe = id; },
       stuck: (sec) => { G.stuckT = sec; },
+      applyLiveMap: (mapData) => applyLiveMap(mapData),
     },
   };
+
+  // ---- マップエディタ連携：リアルタイム更新 ----
+  function applyLiveMap(mapData) {
+    if (!G.stageId || !mapData) return;
+    const currentStage = window.STAGES[G.stageId];
+    if (!currentStage || typeof MapData === "undefined") return;
+
+    MapData.applyMapToStage(currentStage, mapData);
+    G.isCustomMap = true;
+
+    // 地形・障害物・装飾パーツを即座に更新
+    G.world = currentStage.world;
+    G.obstacles = (currentStage.obstacles || []).map((o) => ({ ...o }));
+    G.decorations = (currentStage.decorations || []).map((d) => ({ ...d }));
+
+    // とびらの壁を障害物に追加
+    for (const g of G.gates || []) {
+      if (!g.open) {
+        for (const w of g.wall || []) {
+          G.obstacles.push({ ...w, gateId: g.id });
+        }
+      }
+    }
+
+    // トリガー・宝箱・出口・チェックポイント
+    G.triggers = (currentStage.triggers || []).map((t) => ({
+      ...t,
+      _done: !!(t.set && G.flags[t.set]),
+      _inside: false,
+    }));
+    G.chests = (currentStage.chests || []).filter(condOk).map((c) => ({
+      ...c,
+      opened: !!G.opened[c.id],
+    }));
+    G.checkpoints = (currentStage.checkpoints || []).map((c) => ({ ...c, _done: false }));
+    G.exit = currentStage.exit ? { ...currentStage.exit, _done: false } : null;
+
+    // NPCの更新（位置とセリフを即時反映）
+    G.npcs = (currentStage.npcs || []).map((n) => {
+      const npc = { ...n, _inside: false };
+      const walkKey = n.walkKey || n.walk;
+      const walkPaths =
+        (window.WALKS && walkKey && window.WALKS[walkKey]) || (window.WALKS && window.WALKS[n.id]);
+      if (walkPaths) {
+        initWalker(npc, { walk: walkPaths, size: n.size || 76 }, 76);
+      }
+      return npc;
+    });
+
+    // 敵の更新（すでに倒した敵はそのまま、生存中の敵の位置を更新）
+    G.enemies = (currentStage.enemies || []).filter(condOk).map((e) => {
+      const existing = (G.enemies || []).find((ex) => ex.id === e.id);
+      const alive = !G.defeated[e.id] && (existing ? existing.alive : true);
+      const ent = {
+        ...e,
+        hp: existing ? existing.hp : e.maxHp,
+        alive: alive,
+        atkCd: 0,
+        shootCd: e.shootInterval ? e.shootInterval * 0.6 : 0,
+        phase: Math.random() * Math.PI * 2,
+        phaseSpeed: 3.2 + Math.random() * 1.6,
+        home: { x: e.x, y: e.y },
+        dummy: e.behavior === "dummy",
+        touchCd: 0,
+        knockX: 0,
+        knockY: 0,
+        knockT: 0,
+        flashT: 0,
+        attackedT: 9,
+        targetX: e.x,
+        targetY: e.y,
+        wanderT: 0.5 + Math.random() * 2.0,
+        idleT: Math.random() * 1.5,
+        wanderSpeed: (e.speed || 35) * (0.85 + Math.random() * 0.3),
+        chargeState: "wait",
+        chargeT: 0.4 + Math.random() * 0.5,
+        dashX: 0,
+        dashY: 0,
+      };
+      if (e.dummy && window.WALKS && window.WALKS.kakashi) {
+        e.walk = window.WALKS.kakashi;
+      }
+      initWalker(ent, e, e.dummy ? 80 : 72);
+      return ent;
+    });
+
+    // プレイヤーが新しく置かれた障害物に埋まった場合の安全脱出
+    if (G.player && !isSafePosition(G.player.x, G.player.y, PLAYER_R)) {
+      const safe = findSafeSpawn(currentStage);
+      G.player.x = safe.x;
+      G.player.y = safe.y;
+    }
+
+    showToast("⚡ エディタの編集内容を即座に反映しました！", null, 2500);
+  }
+
+  let toastTimer = 0;
+  function showToast(text, onClick, duration) {
+    if (typeof document === "undefined") return;
+    let el = document.getElementById("map-sync-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "map-sync-toast";
+      const container = document.getElementById("game-container") || document.body;
+      if (container && container.appendChild) container.appendChild(el);
+    }
+    if (!el) return;
+    el.textContent = text;
+    el.className = "toast-visible";
+    el.onclick = () => {
+      el.className = "hidden";
+      if (onClick) onClick();
+    };
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      if (el) el.className = "hidden";
+    }, duration || 2500);
+  }
+
+  function setupMapSyncListener() {
+    if (typeof window === "undefined") return;
+
+    function onMapUpdated(stageId, mapData) {
+      if (!G.running || !G.stageId) return;
+      if (stageId && String(stageId).toLowerCase() !== String(G.stageId).toLowerCase()) return;
+      if (!mapData && typeof MapData !== "undefined" && MapData.getEditedMap) {
+        mapData = MapData.getEditedMap(G.stageId);
+      }
+      if (mapData) {
+        applyLiveMap(mapData);
+      }
+    }
+
+    function onMapCleared(stageId) {
+      if (!G.running || !G.stageId) return;
+      if (stageId && String(stageId).toLowerCase() !== String(G.stageId).toLowerCase()) return;
+      G.isCustomMap = false;
+      const baseStage = (window.MAPS && window.MAPS[G.stageId]) || null;
+      if (baseStage) {
+        applyLiveMap(baseStage);
+        showToast("🔄 マップを元に戻しました", null, 2500);
+      }
+    }
+
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        const bc = new BroadcastChannel("riiko-map-sync");
+        bc.onmessage = (e) => {
+          if (e.data) {
+            if (e.data.type === "map-updated") {
+              onMapUpdated(e.data.stageId, e.data.map);
+            } else if (e.data.type === "map-cleared") {
+              onMapCleared(e.data.stageId);
+            }
+          }
+        };
+      } catch (e) {}
+    }
+
+    window.addEventListener("storage", (e) => {
+      if (e.key && (e.key.startsWith("riiko.map.") || e.key === "riiko.mapeditor.v1")) {
+        onMapUpdated(G.stageId);
+      }
+    });
+  }
+
+  setupMapSyncListener();
 })();

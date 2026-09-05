@@ -31,6 +31,12 @@
         <button id="gate-start-stage" class="gate-stage-btn">この面から はじめる</button>
       </div>
 
+      <!-- エディタ編集マップ自動適用の通知 -->
+      <div id="gate-editor-badge" class="gate-editor-badge hidden">
+        <span>🛠️ エディタの編集マップを自動反映中</span>
+        <button id="gate-editor-reset" class="gate-editor-reset" title="もとのマップにもどす">元にもどす</button>
+      </div>
+
       <button id="gate-new" class="gate-sub-btn">さいしょから やりなおす（1面）</button>
     </div>
   </div>
@@ -40,6 +46,9 @@
 <div id="stage">
   <div id="game-container">
     <canvas id="game"></canvas>
+
+    <!-- エディタ更新のリアルタイム通知 -->
+    <div id="map-sync-toast" class="hidden"></div>
 
     <!-- あそびかたの小さなヒント -->
     <div id="hint">うごく：ボタン／WASD　・　🗡️ボタン／Jキー：けんを ふる　・　はなしを すすめる：タップ／スペース</div>
@@ -65,23 +74,24 @@
       <button id="btn-hint" class="abtn small hidden" aria-label="ヒント">💡</button>
     </div>
 
-    <!-- タイトルへ・おたすけボタン（右上） -->
+    <!-- タイトルへ・おたすけ・おんがくボタン（右上） -->
+    <button id="btn-sound" class="cornerbtn" aria-label="おんがく" title="BGMの オン／オフ">🎵</button>
     <button id="btn-title" class="cornerbtn" aria-label="タイトルへ" title="タイトルへ もどる">🏠</button>
     <button id="btn-help" class="cornerbtn" aria-label="おたすけ" title="おたすけモード">🆘</button>
   </div>
 </div>
 
 <!-- マップの パーツの 絵（tools/build-assets.py が つくる） -->
-<script src="js/assets-data.js?v=16"></script>
-<script src="js/assets.js?v=16"></script>
-<script src="js/mapdata.js?v=16"></script>
+<script src="js/assets-data.js?v=20260905_1020"></script>
+<script src="js/assets.js?v=20260905_1110"></script>
+<script src="js/mapdata.js?v=20260905_1110"></script>
 <!-- 地形（マップ作成ツールの 出力。ふえたら ここに ふやす） -->
-<script src="js/maps/stage1.js?v=16"></script>
-<script src="js/maps/stage2.js?v=16"></script>
+<script src="js/maps/stage1.js?v=20260905_1110"></script>
+<script src="js/maps/stage2.js?v=20260905_1110"></script>
 <!-- ぜんたいの せってい（あいことば・キャラの絵・面の じゅんばん） -->
-<script src="js/scenario.js?v=16"></script>
+<script src="js/scenario.js?v=20260905_1110"></script>
 <!-- 面ごとの おはなし -->
-<script src="js/stages/stage1.js?v=16"></script>
-<script src="js/stages/stage2.js?v=16"></script>
-<script src="js/engine.js?v=16"></script>
-<script src="js/main.js?v=16"></script>
+<script src="js/stages/stage1.js?v=20260905_1110"></script>
+<script src="js/stages/stage2.js?v=20260905_1110"></script>
+<script src="js/engine.js?v=20260905_1110"></script>
+<script src="js/main.js?v=20260905_1110"></script>

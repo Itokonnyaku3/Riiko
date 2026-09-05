@@ -107,8 +107,10 @@ ok("プロローグは 1回だけ", st.flags["prologueDone"] === true);
 ok("プロローグの 人は 消えて いる", st.actors.length === 0);
 
 // ===== 2) フラグ・宝箱・てき を すすめる =====
-st.player.x = 510; st.player.y = 2530; G._test.step(1 / 60); closeDialogue();
-ok("たからばこを あけた", st.opened["c1"] === true && st.items["メダル"] === 1);
+// ===== 2) フラグ・宝箱・てき を すすめる =====
+const c1 = st.chests[0];
+st.player.x = c1.x; st.player.y = c1.y; G._test.step(1 / 60); closeDialogue();
+ok("たからばこを あけた", st.opened[c1.id] === true && st.items["メダル"] === 1);
 
 const e1 = st.enemies.filter((e) => e.id === "e1")[0];
 e1.hp = 0;
@@ -119,25 +121,28 @@ ok("てきを たおすと おぼえる", st.defeated["e1"] === true, JSON.strin
 
 // ===== 3) チェックポイント =====
 //   直前に 斬って いる ので、ヒットストップが おわるまで すこし すすめる
-st.player.x = 1400; st.player.y = 3000; run(10);
+const cp1 = st.checkpoints[0];
+st.player.x = cp1.x; st.player.y = cp1.y; run(10);
 ok("チェックポイントを 通ると 復帰地点が かわる",
-  Math.abs(st.respawn.y - 3000) < 1, JSON.stringify(st.respawn));
+  Math.abs(st.respawn.y - cp1.y) < 1, JSON.stringify(st.respawn));
 // やられても そこから
 st.player.invT = 0;
 G._test.hurt(9);
 for (let i = 0; i < 300 && st.downT > 0; i++) G._test.step(1 / 60);
 ok("やられると チェックポイントから 再かいし",
-  Math.abs(st.player.y - 3000) < 1 && st.player.hp === st.player.maxHp,
+  Math.abs(st.player.y - cp1.y) < 1 && st.player.hp === st.player.maxHp,
   Math.round(st.player.x) + "," + Math.round(st.player.y));
 ok("やられても たからばこ・たおした てきは そのまま",
-  st.opened["c1"] === true && st.defeated["e1"] === true);
+  st.opened[c1.id] === true && st.defeated["e1"] === true);
 
 // ===== 4) トリガーと カットシーン =====
-st.player.x = 1400; st.player.y = 2060; G._test.step(1 / 60);
+const tgPassed = st.triggers.find((t) => t.id === "tg-passed");
+st.player.x = tgPassed.x; st.player.y = tgPassed.y; G._test.step(1 / 60);
 ok("抜け道を こえると フラグが 立つ", st.flags["passedSecret"] === true);
 closeDialogue();
 
-st.player.x = 1420; st.player.y = 860; G._test.step(1 / 60);
+const tgCastle = st.triggers.find((t) => t.id === "tg-castle");
+st.player.x = tgCastle.x; st.player.y = tgCastle.y; G._test.step(1 / 60);
 ok("高台で フラグが 立つ", st.flags["sawCastle"] === true);
 ok("カットシーンが はじまる", !!st.cut && st.paused === true);
 const camBefore = { x: st.cam.x, y: st.cam.y };
@@ -155,7 +160,7 @@ ok("かげマントが すがたを 見せる（次の面への ひき）", sawM
 ok("カットシーンが おわると うごける", st.cut === null && st.paused === false);
 
 // ===== 5) じょうけんつきの セリフ =====
-const owl = st.npcs.filter((n) => n.id === "n4")[0];
+const owl = st.npcs.find((n) => n.walkKey === "hou" || n.name.indexOf("ホゥ") >= 0);
 st.player.x = owl.x + 200; st.player.y = owl.y; G._test.step(1 / 60); // いちど はなれる
 st.player.x = owl.x; st.player.y = owl.y; G._test.step(1 / 60);
 const owlLine = els["dialogue-text"].textContent;
@@ -185,7 +190,7 @@ ok("つづきから：たおした てきは 生きかえらない",
   st.enemies.filter((e) => e.id === "e1")[0].alive === false);
 
 // ===== 7) 面の きりかえ =====
-st.player.x = 1420; st.player.y = 660;
+st.player.x = st.exit ? st.exit.x : 1500; st.player.y = st.exit ? st.exit.y : 520;
 G._test.step(1 / 60);
 ok("出口で かいわが 出る", st.paused === true && dialogOpen());
 closeDialogue();
@@ -218,13 +223,39 @@ G._test.step(1 / 60);
 ok("300びょうで ヒント3＋行き先が 光る", st.hintLv === 3 && !!st.guide,
   JSON.stringify(st.guide));
 
-// すすむと ヒントの タイマーが もどる
-st.player.x = 1400; st.player.y = 3720; run(6); // タロに 会う
+// プレゼント0個の状態ではセーラはヒミツを教えない（2つ要求する）
+const taro = st.npcs.filter((n) => n.id === "n2")[0];
+st.player.x = taro.x; st.player.y = taro.y; G._test.step(1 / 60);
+ok("プレゼント0個ではフラグが立たない", !st.flags["metTaro"]);
+els["dialogue"].dispatch("pointerdown", { stopPropagation() {} });
+els["dialogue"].dispatch("pointerdown", { stopPropagation() {} });
+ok("セーラがプレゼントを2つ要求する", els["dialogue-text"].textContent.indexOf("2つ") >= 0);
+closeDialogue();
+
+// 1つ目の宝箱c1をあける
+const b1 = st.chests.filter((c) => c.id === "c1")[0];
+st.player.x = b1.x; st.player.y = b1.y; G._test.step(1 / 60); closeDialogue();
+ok("1つ目のたからばこを あけた", st.opened[b1.id] === true && st.items["プレゼント"] === 1);
+
+// プレゼント1個の状態ではまだヒミツを教えない（もう1つ要求する）
+st.player.x = taro.x + 100; st.player.y = taro.y; G._test.step(1 / 60);
+st.player.x = taro.x; st.player.y = taro.y; G._test.step(1 / 60);
+ok("プレゼント1個でもフラグは立たない", !st.flags["metTaro"]);
+els["dialogue"].dispatch("pointerdown", { stopPropagation() {} });
+ok("セーラがもう1つのプレゼントを要求する", els["dialogue-text"].textContent.indexOf("もう1つ") >= 0);
+closeDialogue();
+
+// 2つ目の宝箱c2をあける
+const b2 = st.chests.filter((c) => c.id === "c2")[0];
+st.player.x = b2.x; st.player.y = b2.y; G._test.step(1 / 60); closeDialogue();
+ok("2つ目のたからばこを あけた", st.opened[b2.id] === true && st.items["プレゼント"] === 2);
+
+// プレゼントが2つそろってセーラに会うとヒミツを教えてくれる
+st.player.x = taro.x + 100; st.player.y = taro.y; G._test.step(1 / 60);
+st.player.x = taro.x; st.player.y = taro.y; run(6); // セーラに 会う
+closeDialogue();
 ok("話が すすむと ヒントが もとに もどる", st.hintLv === 0 && st.guide === null);
 ok("タロに 会った フラグ", st.flags["metTaro"] === true);
-
-// ★もう一度 話しかける ほど くわしく なる（D2b）
-const taro = st.npcs.filter((n) => n.id === "n2")[0];
 const say = () => {
   st.player.x = taro.x + 200; st.player.y = taro.y; G._test.step(1 / 60);
   st.player.x = taro.x; st.player.y = taro.y; G._test.step(1 / 60);

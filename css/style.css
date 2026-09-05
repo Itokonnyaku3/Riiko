@@ -7,6 +7,10 @@
   -webkit-user-select: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
 html,
 body {
   width: 100%;
@@ -304,9 +308,12 @@ canvas#game {
   background: rgba(120, 200, 120, 0.9);
 }
 
-/* タイトルへもどるボタン */
+/* タイトルへもどるボタン・音楽ボタン */
 #btn-title {
   right: 60px;
+}
+#btn-sound {
+  right: 106px;
 }
 
 /* スタート画面メニューと面選択 */
@@ -386,5 +393,61 @@ canvas#game {
 }
 .gate-box .gate-sub-btn:hover {
   background: #dbe3dd;
+}
+
+/* エディタ連携バッジ（スタートメニュー） */
+.gate-editor-badge {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #eef7ee;
+  border: 1px solid #7dc28c;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #2b6e39;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gate-editor-reset {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #723434;
+  background: #fbebeb;
+  border: 1px solid #e0adad;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.gate-editor-reset:hover {
+  background: #f5d7d7;
+}
+
+/* リアルタイムマップ更新トースト（ゲーム中） */
+#map-sync-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(36, 44, 38, 0.94);
+  color: #bbf3ca;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border: 1px solid #57a569;
+  z-index: 80;
+  cursor: pointer;
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: auto;
+}
+#map-sync-toast:hover {
+  background: rgba(46, 60, 50, 0.98);
+  transform: translateX(-50%) scale(1.03);
+}
+#map-sync-toast.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-10px);
 }
 

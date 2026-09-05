@@ -147,9 +147,9 @@ console.log("\n=== 3) 突進ネコ（ためる → 走る → 目を まわす�
 const ch = st.enemies.filter((x) => x.id === "e4")[0];
 ok("e4 は 突進ネコ", ch.behavior === "charge");
 ch.alive = true; ch.hp = ch.maxHp; ch.knockT = 0;
-ch.x = 1400; ch.y = 1800; ch.home.x = 1400; ch.home.y = 1800;
+ch.x = 1580; ch.y = 1100; ch.home.x = 1580; ch.home.y = 1100;
 ch.chargeState = "wait"; ch.chargeT = 0;
-st.player.x = 1400; st.player.y = 2000; st.player.invT = 999; // ダメージは 受けない
+st.player.x = 1580; st.player.y = 1300; st.player.invT = 999; // ダメージは 受けない
 const seen = [];
 for (let i = 0; i < 400; i++) {
   H.step(1 / 60);
@@ -168,9 +168,9 @@ ok("走った あと 目を まわす", seen.indexOf("dizzy") > seen.indexOf("da
 //   （さいごまで ねらいを 追いかける と、どこへ にげても 当たって しまう）
 function dodgeTest(moveDuringWindup) {
   ch.alive = true; ch.hp = ch.maxHp; ch.knockT = 0;
-  ch.x = 1400; ch.y = 1700; ch.home.x = 1400; ch.home.y = 1700;
+  ch.x = 1580; ch.y = 1100; ch.home.x = 1580; ch.home.y = 1100;
   ch.chargeState = "wait"; ch.chargeT = 0;
-  st.player.x = 1400; st.player.y = 1880;
+  st.player.x = 1580; st.player.y = 1280;
   st.player.hp = st.player.maxHp; st.downT = 0;
   let touched = false;
   let dashed = false;
@@ -208,9 +208,82 @@ H.swing();
 const dizzyTexts = st.floaters.map((f) => f.text);
 ok("目を まわして いる ところを 斬ると 2ばい", dizzyTexts.indexOf("-" + st.player.attack * 2) >= 0, dizzyTexts.join(","));
 
+console.log("\n=== 4) あたらしい敵モンスター（歩行スプライト・糸弾・飛行コウモリ）===");
+const WALKS = window.WALKS || {};
+ok("イノシシ(boar)の歩行スプライト定義がある", !!WALKS.boar && !!WALKS.boar.down && WALKS.boar.down.length === 2);
+ok("キノコ(mushroom)の歩行スプライト定義がある", !!WALKS.mushroom && !!WALKS.mushroom.down && WALKS.mushroom.down.length === 2);
+ok("クモ(spider)の歩行スプライト定義がある", !!WALKS.spider && !!WALKS.spider.down && WALKS.spider.down.length === 2);
+ok("コウモリ(bat)の歩行スプライト定義がある", !!WALKS.bat && !!WALKS.bat.down && WALKS.bat.down.length === 2);
+
+// 2面のクモ（シューター・糸弾）
+const stage2Map = window.MAPS && window.MAPS.stage2;
+const spiderDef = stage2Map && stage2Map.enemies.find((e) => e.walkKey === "spider");
+ok("2面にシャドウスパイダーが配置されている", !!spiderDef && spiderDef.behavior === "shooter");
+
+// 2面のコウモリ（飛行・追尾）
+const batDef = stage2Map && stage2Map.enemies.find((e) => e.walkKey === "bat");
+ok("2面にヤミコウモリが配置されている", !!batDef && batDef.behavior === "chase");
+
+// 糸弾のテスト：クモが糸弾を発射し、プレイヤーに当たるとダメージ
+const sp = {
+  id: "test_spider",
+  x: 1200,
+  y: 3000,
+  maxHp: 15,
+  hp: 15,
+  attack: 2,
+  behavior: "shooter",
+  shootInterval: 1.0,
+  sight: 300,
+  shootCd: 0.01,
+  bulletSpeed: 200,
+  alive: true,
+  phase: 0,
+  phaseSpeed: 4,
+  touchCd: 0,
+  flashT: 0,
+  knockT: 0,
+  attackedT: 9,
+  home: { x: 1200, y: 3000 },
+  walkKey: "spider"
+};
+st.enemies.push(sp);
+st.bullets = st.bullets || [];
+st.player.x = 1350;
+st.player.y = 3000;
+st.player.hp = 3;
+st.player.invT = 0;
+
+closeDialogue();
+st.paused = false;
+st.downT = 0;
+st.hitstop = 0;
+
+let fired = false;
+for (let i = 0; i < 10; i++) {
+  step(1);
+  if (st.bullets && st.bullets.some((b) => b.kind === "web")) {
+    fired = true;
+    break;
+  }
+}
+ok("クモが糸弾を発射する", fired);
+
+// 弾がプレイヤーに向かって進み当たるか
+let bulletHit = false;
+for (let i = 0; i < 60; i++) {
+  step(1);
+  if (st.player.hp < 3 || st.player.invT > 0) {
+    bulletHit = true;
+    break;
+  }
+}
+ok("プレイヤーが糸弾に当たるとダメージまたは無敵発生", bulletHit);
+
 // まとめ
 console.log("");
 let ng = 0;
 for (const r of T) { console.log(r[0] + "  " + r[1] + "  " + r[2]); if (r[0] === "❌") ng++; }
 console.log("\n" + (T.length - ng) + " / " + T.length + " OK");
 process.exit(ng === 0 ? 0 : 1);
+

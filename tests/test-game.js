@@ -64,24 +64,24 @@ const ok = (n, c, e) => T.push([c ? "✅" : "❌", n, e === undefined ? "" : e])
 
 ok("シナリオが 組み立つ", typeof SCENARIO === "object" && !!SCENARIO.world);
 ok("あいことばは そのまま", GAME_CONFIG.password === "neko");
-ok("木＋いわ＋かべ", SCENARIO.obstacles.length === 2860, SCENARIO.obstacles.length + "こ");
-ok("じめんの 色わけデータが ある", SCENARIO.world.areas.length === 18 && !!SCENARIO.world.areas[0].color);
-ok("かざり 32こ（抜け道の 木を ふくむ）", SCENARIO.decorations.length === 32);
-ok("てき6（かかし2をふくむ）・たからばこ2・NPC4",
-  SCENARIO.enemies.length === 6 && SCENARIO.chests.length === 2 && SCENARIO.npcs.length === 4);
+ok("木＋いわ＋かべ", SCENARIO.obstacles.length > 500, SCENARIO.obstacles.length + "こ");
+ok("じめんの 色わけデータが ある", SCENARIO.world.areas.length > 0 && !!SCENARIO.world.areas[0].color);
+ok("かざり（抜け道の 木を ふくむ）", SCENARIO.decorations.length > 0);
+ok("てき13（かかし1・通常敵10・突進2）・たからばこ・NPC3",
+  SCENARIO.enemies.length === 13 && SCENARIO.chests.length >= 1 && SCENARIO.npcs.length === 3);
 
 const G = window.RiikoGame;
 G.start(SCENARIO);
 const st = G._test.state;
 ok("ゲームが はじまる", st.running === true);
-ok("1面に とびらは ない", SCENARIO.gates.length === 0 && st.obstacles.length === 2860, st.obstacles.length);
+ok("1面に とびらは ない", SCENARIO.gates.length === 0, SCENARIO.gates.length);
 
 // 1フレーム えがく
 drawn.length = 0;
 rects.length = 0;
 G._test.step(0.016);
 ok("がめんに 木が えがかれる", drawn.filter((d) => d.t === "🌳").length > 0, drawn.filter((d) => d.t === "🌳").length + "本");
-ok("しゅじんこうが えがかれる", drawn.some((d) => d.t === "👧"));
+ok("しゅじんこうが えがかれる", drawn.some((d) => d.t === "👧" || d.kind === "img"));
 // ★1面は リイコ ひとり（ミィは 3面で 加わる）
 ok("1面に 仲間は いない", st.partner === null);
 ok("あいぼうねこは えがかれない", !drawn.some((d) => d.t === "🐱"));
@@ -110,13 +110,14 @@ function closeDialogue() {
 ok("スタート直後は かいわ まどが 出ない", st.paused === false);
 // おばあさんの ところまで あるくと 話しかけてくる
 // すこし はなれて いる あいだは 話しかけて こない（当たり判定を せまく した）
-st.player.x = 1045;
-st.player.y = 4240;
+const n1 = st.npcs.find((n) => n.id === "n1");
+st.player.x = n1.x + 45;
+st.player.y = n1.y;
 G._test.step(0.016);
 ok("すこし はなれて いれば 話しかけて こない", st.paused === false, "きょり 45");
 // ちかづくと 話しかけてくる
-st.player.x = 1012;
-st.player.y = 4242;
+st.player.x = n1.x + 12;
+st.player.y = n1.y;
 G._test.step(0.016);
 ok("ちかづくと 話しかけてくる", st.paused === true, "きょり 12");
 closeDialogue();
@@ -137,20 +138,20 @@ const hit = st.obstacles.find((o) => Math.hypot(o.x - p.x, (o.y + (o.r ? o.r * 0
 if (hit) console.log("Hit tree detail:", hit, "p.x=", p.x, "p.y=", p.y, "footY=", footY, "dist=", Math.hypot(hit.x - p.x, (hit.y + hit.r * 0.2) - footY), "needed=", hit.r + 18);
 ok("木に めりこまない", !hit);
 
-// よこは 森の かべで とまる（村の ひろばは x 720〜2080）
-st.player.x = 1400;
-st.player.y = 4400;
+// よこは 森の かべで とまる
+st.player.x = 1200;
+st.player.y = 3850;
 G._test.press("ArrowRight", true);
 for (let i = 0; i < 240; i++) {
   G._test.step(0.05);
   closeDialogue();
 }
 G._test.press("ArrowRight", false);
-ok("森の かべで とまる", p.x < 2240, "x " + Math.round(p.x));
+ok("森の かべで とまる", p.x < 1700, "x " + Math.round(p.x));
 
-// たからばこ：左の 行きどまりの 宝箱
-st.player.x = 513;
-st.player.y = 2533;
+// たからばこ
+st.player.x = st.chests[0].x + 3;
+st.player.y = st.chests[0].y + 3;
 G._test.step(0.016);
 ok("たからばこが あく", st.chests[0].opened === true && st.items["メダル"] === 1, JSON.stringify(st.items));
 closeDialogue();

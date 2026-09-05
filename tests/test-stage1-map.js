@@ -27,6 +27,7 @@ function buildGrid(extraObstacles) {
   const CELL = 80;
   const buckets = new Map();
   for (const o of obs) {
+    if (!o.r) continue;
     const reach = o.r + PLAYER_R;
     const x0 = Math.floor((o.x - reach) / CELL), x1 = Math.floor((o.x + reach) / CELL);
     const y0 = Math.floor((o.y - reach) / CELL), y1 = Math.floor((o.y + reach) / CELL);
@@ -75,20 +76,21 @@ function flood(free, sx, sy) {
 }
 const at = (seen, x, y) => !!seen[Math.round(x / STEP) * NY + Math.round(y / STEP)];
 
-const START = [1400, 4400];
+const START = [1200, 4120];
 const POINTS = {
-  "スタート（村）":        [1400, 4400],
-  "きこりの小屋":          [1400, 3720],
-  "森の広場":              [1400, 3000],
-  "右の寄り道（宝c2）":     [2080, 3000],
-  "三叉路":                [1400, 2700],
-  "左の行き止まり（宝c1）": [510, 2530],
-  "右の行き止まり（うさぎ）":[2300, 2530],
-  "岩の手前の広場":         [1400, 2420],
-  "★岩の間（抜け道）":      [1400, 2200],
-  "森の奥":                [1400, 1800],
-  "見晴らしの高台":         [1420, 920],
-  "出口":                  [1420, 660],
+  "最初の広場（スタート）":   [1200, 4120],
+  "おばあちゃんの前":         [1000, 3900],
+  "かかしの前":               [1400, 3900],
+  "連絡路1":                  [1400, 3450],
+  "二つ目の広場手前（cp1）":   [1380, 3150],
+  "東の小部屋（宝箱c2）":     [1980, 3050],
+  "情報屋（セーラ）":         [1480, 3100],
+  "二つ目の広場（宝箱c1）":    [600, 2200],
+  "★すり抜けられる木（抜け道）":[1150, 1820],
+  "三つ目の広場入口（cp2）":   [1150, 1650],
+  "三つ目の広場（突進敵）":    [1450, 1300],
+  "見晴らしの高台":           [1500, 750],
+  "出口":                     [1500, 520],
 };
 
 console.log("=== 1) ふつうに 遊んだとき ===");
@@ -104,11 +106,10 @@ for (const [name, p] of Object.entries(POINTS)) {
 
 console.log("\n=== 2) 行けては いけない ところ ===");
 const forbidden = {
-  "やみのしろ（遠景）":   [1400, 320],
-  "しろの手前":          [1400, 500],
-  "森の中（左おく）":     [240, 1800],
-  "森の中（右おく）":     [2600, 1800],
-  "世界の北のはし":       [1400, 80],
+  "やみのしろ（遠景）":   [1500, 200],
+  "森の中（西の外壁）":   [200, 2000],
+  "森の中（東の外壁）":   [2200, 2000],
+  "世界の北のはし":       [1500, 80],
 };
 for (const [name, p] of Object.entries(forbidden)) {
   const ok = at(f1.seen, p[0], p[1]);
@@ -118,20 +119,22 @@ for (const [name, p] of Object.entries(forbidden)) {
 
 console.log("\n=== 3) 抜け道を ふさぐと 先へ 進めないか（謎が 本物か）===");
 const plug = [];
-for (let y = 2080; y <= 2340; y += 40) plug.push({ x: 1400, y: y, r: 200, sprite: "X" });
+for (let x = 1000; x <= 1300; x += 20) {
+  plug.push({ x: x, y: 1820, r: 40, sprite: "X" });
+}
 const g2 = buildGrid(plug);
 const f2 = flood(g2, START[0], START[1]);
-const northReach = at(f2.seen, 1420, 920);
-console.log((northReach ? "  NG " : "  OK ") + "抜け道を ふさぐと 高台へ 行けない（＝二つの岩の間が 唯一の 道）");
+const northReach = at(f2.seen, 1500, 750);
+console.log((northReach ? "  NG " : "  OK ") + "抜け道を ふさぐと 高台へ 行けない（＝すり抜け道が 唯一の ルート）");
 if (northReach) fail++;
-const stillFork = at(f2.seen, 1400, 2700) && at(f2.seen, 510, 2530) && at(f2.seen, 2300, 2530);
-console.log((stillFork ? "  OK " : "  NG ") + "ふさいでも 三叉路・左右の 行き止まりには 行ける");
-if (!stillFork) fail++;
+const stillPlaza2 = at(f2.seen, 1000, 2400) && at(f2.seen, 600, 2200);
+console.log((stillPlaza2 ? "  OK " : "  NG ") + "ふさいでも 二つ目の広場には 行ける");
+if (!stillPlaza2) fail++;
 
 console.log("\n=== 4) 抜け道の ひろさ ===");
-for (const y of [2380, 2300, 2200, 2100, 2000]) {
+for (const y of [1880, 1850, 1820, 1780]) {
   let lo = null, hi = null;
-  for (let x = 1120; x <= 1680; x += 2) {
+  for (let x = 1000; x <= 1300; x += 2) {
     if (at(f1.seen, x, y)) { if (lo === null) lo = x; hi = x; }
   }
   console.log("  y=" + y + " → 通れる はば " + (lo === null ? "なし" : (hi - lo) + "px (x " + lo + "〜" + hi + ")"));

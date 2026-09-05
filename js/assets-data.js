@@ -20,6 +20,8 @@
     list: [
       { id: "tree-big", label: "大きい き", group: "tree", w: 190, h: 234, r: 30, size: 112, em: "🌳" },
       { id: "tree", label: "き", group: "tree", w: 150, h: 197, r: 26, size: 94, em: "🌳" },
+      { id: "tree-canopy", label: "きの はっぱ", group: "tree", w: 150, h: 135, r: 0, size: 70, em: "🌿" },
+      { id: "tree-canopy2", label: "きの はっぱ2", group: "tree", w: 146, h: 142, r: 0, size: 70, em: "🌿" },
       { id: "tree2", label: "き2", group: "tree", w: 146, h: 182, r: 26, size: 88, em: "🌳" },
       { id: "tree-small", label: "小さい き", group: "tree", w: 119, h: 174, r: 22, size: 76, em: "🌳" },
       { id: "tree3", label: "き3", group: "tree", w: 127, h: 138, r: 24, size: 72, em: "🌳" },

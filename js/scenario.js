@@ -31,6 +31,30 @@ window.WALKS = {
     left: ["assets/enemy/left1.png", "assets/enemy/left2.png"],
     right: ["assets/enemy/right1.png", "assets/enemy/right2.png"],
   },
+  boar: {
+    down: ["assets/boar/down1.png", "assets/boar/down2.png"],
+    up: ["assets/boar/up1.png", "assets/boar/up2.png"],
+    left: ["assets/boar/left1.png", "assets/boar/left2.png"],
+    right: ["assets/boar/right1.png", "assets/boar/right2.png"],
+  },
+  mushroom: {
+    down: ["assets/mushroom/down1.png", "assets/mushroom/down2.png"],
+    up: ["assets/mushroom/up1.png", "assets/mushroom/up2.png"],
+    left: ["assets/mushroom/left1.png", "assets/mushroom/left2.png"],
+    right: ["assets/mushroom/right1.png", "assets/mushroom/right2.png"],
+  },
+  spider: {
+    down: ["assets/spider/down1.png", "assets/spider/down2.png"],
+    up: ["assets/spider/up1.png", "assets/spider/up2.png"],
+    left: ["assets/spider/left1.png", "assets/spider/left2.png"],
+    right: ["assets/spider/right1.png", "assets/spider/right2.png"],
+  },
+  bat: {
+    down: ["assets/bat/down1.png", "assets/bat/down2.png"],
+    up: ["assets/bat/up1.png", "assets/bat/up2.png"],
+    left: ["assets/bat/left1.png", "assets/bat/left2.png"],
+    right: ["assets/bat/right1.png", "assets/bat/right2.png"],
+  },
   mii: {
     down: ["assets/mii/down1.png", "assets/mii/down2.png"],
     up: ["assets/mii/up1.png", "assets/mii/up2.png"],
@@ -54,6 +78,12 @@ window.WALKS = {
     up: ["assets/seera/up1.png", "assets/seera/up2.png"],
     left: ["assets/seera/left1.png", "assets/seera/left2.png"],
     right: ["assets/seera/right1.png", "assets/seera/right2.png"],
+  },
+  hana: {
+    down: ["assets/hana/down1.png", "assets/hana/down2.png"],
+    up: ["assets/hana/up1.png", "assets/hana/up2.png"],
+    left: ["assets/hana/left1.png", "assets/hana/left2.png"],
+    right: ["assets/hana/right1.png", "assets/hana/right2.png"],
   },
   kagemanto: {
     down: ["assets/kagemanto/down1.png", "assets/kagemanto/down2.png"],

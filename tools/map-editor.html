@@ -22,12 +22,16 @@
       <select id="f-maps"></select>
     </label>
     <button id="b-loadmap">📚 よむ</button>
+    <button id="b-reload-file" title="ディスクの本番マップファイルを直接読み直します">🔄 本番マップ再読込</button>
     <button id="b-open">📂 ファイルから</button>
     <button id="b-save" class="primary">💾 ファイルに だす</button>
+    <button id="b-fs-save" class="fs-btn" title="js/maps/ に直接ファイルを保存・上書きします">📁 ファイル直接保存</button>
     <button id="b-copy-map">📋 マップコードを コピー</button>
     <button id="b-code">📋 シナリオ用コード</button>
     <button id="b-new">✨ さいしょから</button>
     <button id="b-help">❓ つかいかた</button>
+    <span id="sync-status" class="sync-status" title="編集した内容はゲームに自動で即時反映されます">🟢 本番に即時反映中</span>
+    <a href="../index.html" target="_blank" id="b-play-game" class="play-btn">🎮 ゲームをあそぶ</a>
     <input id="f-file" type="file" accept=".js,.json,application/json,text/javascript" hidden />
   </header>
 
@@ -149,11 +153,11 @@
 
 <!-- パーツの 絵（tools/build-assets.py が つくる）。tools/ の 中なので 1つ 上を 見る -->
 <script>window.PART_ASSET_BASE = "../";</script>
-<script src="../js/assets-data.js"></script>
-<script src="../js/assets.js"></script>
-<script src="../js/mapdata.js"></script>
-<script src="../js/scenario.js"></script>
+<script src="../js/assets-data.js?v=20260905_1110"></script>
+<script src="../js/assets.js?v=20260905_1110"></script>
+<script src="../js/mapdata.js?v=20260905_1110"></script>
+<script src="../js/scenario.js?v=20260905_1110"></script>
 <!-- できあがっている マップ（ふえたら ここに ふやす） -->
-<script src="../js/maps/stage1.js"></script>
-<script src="../js/maps/stage2.js"></script>
-<script src="map-editor.js"></script>
+<script src="../js/maps/stage1.js?v=20260905_1110"></script>
+<script src="../js/maps/stage2.js?v=20260905_1110"></script>
+<script src="map-editor.js?v=20260905_1110"></script>

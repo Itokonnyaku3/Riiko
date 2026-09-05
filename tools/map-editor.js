@@ -23,7 +23,6 @@
 
   // ---- どうぐ ----
   const TOOLS = [
-    { id: "pan", ic: "🖐", label: "うごかす" },
     { id: "ground-rect", ic: "⬛", label: "じめん□" },
     { id: "ground-circle", ic: "⭕", label: "じめん◯" },
     { id: "ground-brush", ic: "🖌", label: "じめん ふで" },
@@ -180,15 +179,44 @@
   }
 
   let saveTimer = 0;
+  function updateSyncIndicator(msg, isHighlight) {
+    const el = $("sync-status");
+    if (!el) return;
+    el.textContent = msg || "🟢 自動連携中";
+    if (isHighlight) {
+      el.classList.add("saved");
+      setTimeout(() => el.classList.remove("saved"), 1200);
+    }
+  }
+
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
-        localStorage.setItem(SAVE_KEY, JSON.stringify(S.data));
+        const jsonStr = JSON.stringify(S.data);
+        localStorage.setItem(SAVE_KEY, jsonStr);
+        if (S.data && S.data.name) {
+          localStorage.setItem("riiko.map." + String(S.data.name).toLowerCase(), jsonStr);
+        }
+        localStorage.setItem("riiko.map.last_updated", String(Date.now()));
+
+        if (typeof BroadcastChannel !== "undefined") {
+          try {
+            const ch = new BroadcastChannel("riiko-map-sync");
+            ch.postMessage({
+              type: "map-updated",
+              stageId: S.data.name,
+              timestamp: Date.now(),
+              map: S.data,
+            });
+            ch.close();
+          } catch (e) {}
+        }
+        updateSyncIndicator("🟢 本番に即時反映中", true);
       } catch (e) {
         /* いっぱいの ときは あきらめる */
       }
-    }, 400);
+    }, 100);
   }
 
   // =========================================================
@@ -305,12 +333,31 @@
     ctx.setTransform(dpr * z, 0, 0, dpr * z, -S.cam.x * z * dpr, -S.cam.y * z * dpr);
 
     // そとがわ（森のゆか など）
-    ctx.fillStyle = d.world.ground;
+    ctx.fillStyle = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+      ? Assets.getGroundPattern(ctx, d.world.ground, d.world.ground)
+      : d.world.ground;
     ctx.fillRect(0, 0, d.world.width, d.world.height);
 
-    // あるける じめん
+    // あるける じめん（パス1: 接地影）
+    ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
     for (const a of d.areas) {
-      ctx.fillStyle = (M.GROUND_KINDS[a.kind] || {}).color || "#8fca7a";
+      if (a.kind !== "dirt" && a.kind !== "stone" && a.kind !== "stone2") continue;
+      if (a.shape === "circle") {
+        ctx.beginPath();
+        ctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, Math.min(18, a.w / 2, a.h / 2) + 2);
+        ctx.fill();
+      }
+    }
+
+    // あるける じめん（パス2: 本体テクスチャ）
+    for (const a of d.areas) {
+      const col = (M.GROUND_KINDS[a.kind] || {}).color || "#8fca7a";
+      ctx.fillStyle = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+        ? Assets.getGroundPattern(ctx, a.kind, col)
+        : col;
       if (a.shape === "circle") {
         ctx.beginPath();
         ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
@@ -378,7 +425,8 @@
     // かざり
     if (!simple)
       for (const o of d.decorations) {
-        if (on(o, 40)) A.drawDeco(ctx, o.sprite, o.x, o.y, 30);
+        const ds = o.size || (A.def(o.sprite) && A.def(o.sprite).size) || 30;
+        if (on(o, 40)) A.drawDeco(ctx, o.sprite, o.x, o.y, ds);
       }
 
     // ぶつかる まる
@@ -544,9 +592,12 @@
     S.mouse.y = w.y;
     S.mouse.on = true;
 
-    // まん中ボタン・右ボタン・スペース は いつでも「うごかす」
-    if (ev.button === 1 || ev.button === 2 || S.tool === "pan" || S.space_ || S.walk) {
-      S.drag = { tool: "pan", px: ev.clientX, py: ev.clientY };
+    // まん中ボタン・右ボタン・スペースキー押下中・walk中 は「うごかす」
+    if (ev.button === 1 || ev.button === 2 || S.space_ || S.walk) {
+      S.drag = { tool: "pan", px: ev.clientX, py: ev.clientY, button: ev.button };
+      if (S.space_ || ev.button === 1 || ev.button === 2) {
+        canvas.style.cursor = "grabbing";
+      }
       return;
     }
     if (S.mode === "events") { startEventTool(w.x, w.y); return; }
@@ -568,6 +619,9 @@
       S.cam.y -= (ev.clientY - dg.py) / S.zoom;
       dg.px = ev.clientX;
       dg.py = ev.clientY;
+      if (S.space_ || dg.button === 1 || dg.button === 2) {
+        canvas.style.cursor = "grabbing";
+      }
       return;
     }
     moveTool(w.x, w.y);
@@ -575,11 +629,17 @@
 
   canvas.addEventListener("pointerup", (ev) => {
     const w = toWorld(ev.clientX, ev.clientY);
+    if (S.drag && S.drag.tool === "pan") {
+      canvas.style.cursor = S.space_ ? "grab" : "";
+    }
     if (S.mode === "events") endEventTool();
     if (S.drag && S.drag.tool !== "pan") endTool(w.x, w.y);
     S.drag = null;
   });
-  canvas.addEventListener("pointerleave", () => (S.mouse.on = false));
+  canvas.addEventListener("pointerleave", () => {
+    S.mouse.on = false;
+    if (!S.drag && !S.space_) canvas.style.cursor = "";
+  });
 
   canvas.addEventListener(
     "wheel",
@@ -900,8 +960,16 @@
         label = o.name || "NPC";
       } else if (kind === "enemy") {
         const isDummy = o.behavior === "dummy";
-        const wData = isDummy ? (window.WALKS && window.WALKS.kakashi) : (window.WALKS && window.WALKS.enemy);
-        drawn = drawWalkSprite(wData, "down", 0, o.x, o.y, o.size || (isDummy ? 80 : 72));
+        const wKey = o.walkKey || (isDummy ? "kakashi" : (typeof o.walk === "string" ? o.walk : "enemy"));
+        const wData = (window.WALKS && window.WALKS[wKey]) || (isDummy ? (window.WALKS && window.WALKS.kakashi) : (window.WALKS && window.WALKS.enemy));
+        const isBat = wKey === "bat" || o.sprite === "🦇";
+        if (isBat) {
+          ctx.fillStyle = "rgba(0,0,0,0.18)";
+          ctx.beginPath();
+          ctx.ellipse(o.x, o.y + 10, 16, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        drawn = drawWalkSprite(wData, "down", 0, o.x, o.y + (isBat ? -10 : 0), o.size || (isDummy ? 80 : 72));
         label = o.name || (isDummy ? "かかし" : "てき");
       } else if (kind === "exit") {
         label = o.label || "出口";
@@ -1182,6 +1250,7 @@
     { value: "", label: "（キャラを えらぶ）" },
     { value: "gil", label: "👦 狩人見習いの ギル", name: "狩人見習いの ギル", sprite: "👦", size: 76, walkKey: "gil" },
     { value: "seera", label: "👧 情報屋の セーラ", name: "情報屋の セーラ", sprite: "👧", size: 76, walkKey: "seera" },
+    { value: "hana", label: "👧 友達の ハナ", name: "ハナ", sprite: "👧", size: 76, walkKey: "hana" },
     { value: "sumire", label: "🧓 むらの スミレばあちゃん", name: "むらの スミレばあちゃん", sprite: "🧓", size: 76, walkKey: "sumire" },
     { value: "hou", label: "🦉 ふくろうの ホゥ", name: "ふくろうの ホゥ", sprite: "🦉", size: 68, walkKey: "hou" },
     { value: "belle", label: "🧚 妖精ベル", name: "ベル", sprite: "🧚", size: 68, walkKey: "belle" },
@@ -1244,9 +1313,13 @@
 
   const ENEMY_PRESETS = [
     { value: "", label: "（てきを えらぶ）" },
-    { value: "cat", label: "😾 森の ネコ（パトロール）", name: "森の ネコ", sprite: "😾", size: 72, maxHp: 16, attack: 3, behavior: "patrol" },
-    { value: "charge", label: "😾 突進ネコ（ためてダッシュ）", name: "突進ネコ", sprite: "😾", size: 72, maxHp: 20, attack: 3, behavior: "charge" },
-    { value: "kakashi", label: "🪵 かかし（れんしゅう台）", name: "かかし", sprite: "🪵", size: 80, maxHp: 99, attack: 0, behavior: "dummy" },
+    { value: "cat", label: "😾 いたずらネコ（パトロール）", name: "いたずらネコ", sprite: "😾", size: 68, maxHp: 12, attack: 2, behavior: "patrol", walkKey: "enemy", speed: 40, patrolRange: 80 },
+    { value: "chase_cat", label: "🙀 びっくりネコ（おいかける）", name: "びっくりネコ", sprite: "🙀", size: 68, maxHp: 14, attack: 2, behavior: "chase", walkKey: "enemy", speed: 52, sight: 220 },
+    { value: "boar", label: "🐗 トツゲキ猪（ためて突進）", name: "トツゲキ猪", sprite: "🐗", size: 76, maxHp: 20, attack: 3, behavior: "charge", walkKey: "boar", speed: 60, sight: 260, windupSec: 1.4, aimRatio: 0.5, dashSec: 0.85, dashSpeed: 270, dizzySec: 1.8, restSec: 1.2 },
+    { value: "mushroom", label: "🍄 キノコこぞう（お散歩）", name: "キノコこぞう", sprite: "🍄", size: 62, maxHp: 10, attack: 1, behavior: "patrol", walkKey: "mushroom", speed: 32, patrolRange: 60 },
+    { value: "spider", label: "🕷️ シャドウスパイダー（糸弾シューター）", name: "シャドウスパイダー", sprite: "🕷️", size: 70, maxHp: 14, attack: 2, behavior: "shooter", walkKey: "spider", speed: 28, sight: 320, shootInterval: 2.2, bulletSpeed: 140, bulletDamage: 1 },
+    { value: "bat", label: "🦇 ヤミコウモリ（すばやく追尾）", name: "ヤミコウモリ", sprite: "🦇", size: 62, maxHp: 8, attack: 2, behavior: "chase", walkKey: "bat", speed: 58, sight: 240 },
+    { value: "kakashi", label: "🪵 かかし（れんしゅう台）", name: "かかし", sprite: "🪵", size: 80, maxHp: 999, attack: 0, behavior: "dummy", walkKey: "kakashi" },
   ];
 
   function renderEnemyFields(add, ev) {
@@ -1259,19 +1332,35 @@
       ev.maxHp = p.maxHp;
       ev.attack = p.attack;
       ev.behavior = p.behavior;
+      ev.walkKey = p.walkKey || p.value;
+      if (p.speed) ev.speed = p.speed;
+      if (p.patrolRange) ev.patrolRange = p.patrolRange;
+      if (p.sight) ev.sight = p.sight;
+      if (p.shootInterval) ev.shootInterval = p.shootInterval;
+      if (p.bulletSpeed) ev.bulletSpeed = p.bulletSpeed;
+      if (p.bulletDamage) ev.bulletDamage = p.bulletDamage;
+      if (p.windupSec) ev.windupSec = p.windupSec;
+      if (p.aimRatio != null) ev.aimRatio = p.aimRatio;
+      if (p.dashSec) ev.dashSec = p.dashSec;
+      if (p.dashSpeed) ev.dashSpeed = p.dashSpeed;
+      if (p.dizzySec) ev.dizzySec = p.dizzySec;
+      if (p.restSec) ev.restSec = p.restSec;
       save();
       renderInspector();
     })));
     add(fieldRow("名前", textInput(ev.name || "", (v) => { ev.name = v; save(); })));
     add(row2(
       fieldRow("絵（sprite）", textInput(ev.sprite || "", (v) => { ev.sprite = v; save(); })),
-      fieldRow("大きさ（size。敵: 72、かかし: 80）", optionalNumberInput(ev.size, (v) => { if (v == null) delete ev.size; else ev.size = v; save(); }))
+      fieldRow("歩行画像（walkKey）", textInput(ev.walkKey || "", (v) => { ev.walkKey = v; save(); }))
     ));
     add(row2(
-      fieldRow("HP", numberInput(ev.maxHp, (v) => { ev.maxHp = v; save(); })),
-      fieldRow("こうげき力", numberInput(ev.attack, (v) => { ev.attack = v; save(); }))
+      fieldRow("大きさ（size。通常: 68〜76、かかし: 80）", optionalNumberInput(ev.size, (v) => { if (v == null) delete ev.size; else ev.size = v; save(); })),
+      fieldRow("HP", numberInput(ev.maxHp, (v) => { ev.maxHp = v; save(); }))
     ));
-    add(fieldRow("うごきかた（behavior）", selectInput(ev.behavior, BEHAVIOR_OPTS, (v) => { ev.behavior = v; save(); renderInspector(); })));
+    add(row2(
+      fieldRow("こうげき力", numberInput(ev.attack, (v) => { ev.attack = v; save(); })),
+      fieldRow("うごきかた（behavior）", selectInput(ev.behavior, BEHAVIOR_OPTS, (v) => { ev.behavior = v; save(); renderInspector(); }))
+    ));
     add(row2(
       checkLabel("たおすと おぼえる（remember）", ev.remember, (v) => { ev.remember = v; save(); }),
       checkLabel("絵を むきで かえる（walk）", ev.walk !== false, (v) => { ev.walk = v; save(); })
@@ -1466,6 +1555,22 @@
   function openIntroModal() {
     S.data.intro = S.data.intro || { once: "prologueDone", cutscene: { steps: [] } };
     richModal("🎬 オープニング（面の さいしょに 1回だけ）", (c) => {
+      // テンプレート自動作成ボタン
+      const presetBtn = document.createElement("button");
+      presetBtn.className = "wide primary";
+      presetBtn.style.marginBottom = "10px";
+      presetBtn.textContent = "✨ 友達（ハナ）がさらわれるオープニングを自動作成";
+      presetBtn.onclick = () => {
+        const px = S.data.player ? S.data.player.x : 514;
+        const py = S.data.player ? S.data.player.y : 1852;
+        if (M.createPrologueCutscene) {
+          S.data.intro = M.createPrologueCutscene(px, py);
+          save();
+          openIntroModal();
+        }
+      };
+      c.appendChild(presetBtn);
+
       c.appendChild(fieldRow("once（この フラグが 立ったら 二度と 出さない）",
         textInput(S.data.intro.once || "", (v) => { S.data.intro.once = v; save(); })));
       const box = document.createElement("div");
@@ -1956,6 +2061,29 @@
     $("v-fillmargin").textContent = S.data.fill.margin;
   }
 
+  // ディスクの最新マップファイルを直接取得して反映する（ブラウザキャッシュ対策）
+  async function loadStageFile(stageName) {
+    let mapData = null;
+    try {
+      const res = await fetch("../js/maps/" + stageName + ".js?t=" + Date.now(), { cache: "no-store" });
+      if (res.ok) {
+        const text = await res.text();
+        const m = text.match(/\/\*MAPDATA\*\/(.*?)(?:\/\*ENDMAPDATA\*\/|;?\s*$)/s);
+        if (m && m[1]) {
+          mapData = JSON.parse(m[1].trim().replace(/;$/, ""));
+          window.MAPS = window.MAPS || {};
+          window.MAPS[stageName] = mapData;
+        }
+      }
+    } catch (e) {
+      console.warn("fetch loadStageFile fallback:", e);
+    }
+    if (!mapData && window.MAPS && window.MAPS[stageName]) {
+      mapData = JSON.parse(JSON.stringify(window.MAPS[stageName]));
+    }
+    return mapData;
+  }
+
   // ---- そうさの ひもづけ ----
   function bind() {
     $("insp-close").onclick = closeInspector;
@@ -2055,19 +2183,58 @@
     };
 
     $("b-save").onclick = () => {
+      save();
       const name = S.data.name + ".js";
       download(exportJS(), name);
       modal(
         "💾 ファイルに だしました",
-        "<b>" + name + "</b> を ダウンロードしました（地形と てき・NPC・トリガーなど イベントも ぜんぶ 入って います）。<br>" +
-          "1. そのファイルを <code>js/maps/</code> に いれる<br>" +
-          "2. すでに ある 面なら、それだけで OK（<code>js/stages/" + S.data.name + ".js</code> が 自動で よみこみます）<br>" +
-          "3. あたらしい 面なら、<code>index.html</code> に この2ぎょうを ふやし、" +
-          "「📋 あたらしい 面の コード」ボタンで 出る ひな形を <code>js/stages/" + S.data.name + ".js</code> として おく<br>" +
-          "&nbsp;&nbsp;<code>&lt;script src=\"js/maps/" + name + "\"&gt;&lt;/script&gt;</code><br>" +
-          "&nbsp;&nbsp;<code>&lt;script src=\"js/stages/" + name + "\"&gt;&lt;/script&gt;</code>"
+        "<b>" + name + "</b> を ダウンロードしました。<br><br>" +
+          "<b style='color:#f87171;'>⚠️ 保存先フォルダのご注意:</b><br>" +
+          "プロジェクトのファイルを置き換える場合は、必ず <b><code>js/maps/" + name + "</code></b> に保存してください。<br>" +
+          "<span style='color:#f87171;'>※ <code>js/stages/</code> フォルダには保存しないでください（シナリオ用ファイルのためゲームが動かなくなります）。</span><br><br>" +
+          "<b>💡 自動連携について:</b><br>" +
+          "同じブラウザでゲーム（<code>index.html</code>）を開く場合は、<b>ファイルを移動しなくても自動で最新マップが反映されます！</b>"
       );
     };
+
+    let fsFileHandle = null;
+    const fsSaveBtn = $("b-fs-save");
+    if (fsSaveBtn) {
+      if (!window.showSaveFilePicker) {
+        fsSaveBtn.style.display = "none";
+      } else {
+        fsSaveBtn.onclick = async () => {
+          try {
+            if (!fsFileHandle) {
+              fsFileHandle = await window.showSaveFilePicker({
+                suggestedName: S.data.name + ".js",
+                types: [{
+                  description: "マップデータ（保存先: js/maps/" + S.data.name + ".js）",
+                  accept: { "text/javascript": [".js"] },
+                }],
+              });
+            }
+            const writable = await fsFileHandle.createWritable();
+            await writable.write(exportJS());
+            await writable.close();
+            updateSyncIndicator("💾 ファイル保存完了", true);
+            modal(
+              "💾 ファイルに直接保存しました",
+              "<b>" + (fsFileHandle.name || (S.data.name + ".js")) + "</b> に保存しました！<br><br>" +
+              "<b style='color:#f87171;'>⚠️ ご確認:</b><br>" +
+              "保存先が <b><code>js/maps/</code></b> フォルダであることをご確認ください。<br>" +
+              "（※ <code>js/stages/</code> ではありません）<br><br>" +
+              "ゲーム画面（<code>index.html</code>）を再読み込み（F5）すると反映されます。"
+            );
+          } catch (err) {
+            if (err.name !== "AbortError") {
+              console.error(err);
+              modal("保存エラー", "ファイルに保存できませんでした: " + err.message);
+            }
+          }
+        };
+      }
+    }
 
     const copyMapBtn = $("b-copy-map");
     if (copyMapBtn) {
@@ -2123,10 +2290,44 @@
       });
       $("b-loadmap").onclick = () => {
         const k = sel.value;
-        if (!k || !window.MAPS[k]) return;
+        if (!k) return;
         if (!confirm("「" + k + "」を よみこみます。いまの さぎょうは きえます。いい？")) return;
-        setData(JSON.parse(JSON.stringify(window.MAPS[k])));
+        if (window.MAPS && window.MAPS[k]) {
+          setData(JSON.parse(JSON.stringify(window.MAPS[k])));
+          save();
+        }
+        if (isBrowser && typeof loadStageFile === "function") {
+          loadStageFile(k).then((loaded) => {
+            if (loaded && loaded.world) {
+              setData(loaded);
+              save();
+            }
+          }).catch(() => {});
+        }
       };
+
+      const reloadBtn = $("b-reload-file");
+      if (reloadBtn) {
+        reloadBtn.onclick = async () => {
+          const k = (sel && sel.value) || S.data.name || "stage1";
+          if (!confirm("本番マップ（js/maps/" + k + ".js）を読み直します。編集中の作業はリセットされます。よろしいですか？")) return;
+          let loaded = null;
+          if (typeof loadStageFile === "function") {
+            try { loaded = await loadStageFile(k); } catch (e) {}
+          }
+          if (!loaded && window.MAPS && window.MAPS[k]) {
+            loaded = JSON.parse(JSON.stringify(window.MAPS[k]));
+          }
+          if (!loaded) {
+            modal("エラー", "「" + k + "」の本番マップを読み込めませんでした。");
+            return;
+          }
+          loaded.updatedAt = Date.now();
+          setData(loaded);
+          save();
+          modal("本番マップ反映", "「" + k + "」の本番マップ（js/maps/" + k + ".js）を読み込みました！");
+        };
+      }
     }
 
     window.addEventListener("keydown", (e) => {
@@ -2134,7 +2335,13 @@
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       const k = e.key.toLowerCase();
       if (S.walk) S.walk.keys[k] = true;
-      if (k === " ") S.space_ = true;
+      if (e.code === "Space" || k === " ") {
+        e.preventDefault();
+        if (!S.space_) {
+          S.space_ = true;
+          canvas.style.cursor = S.drag && S.drag.tool === "pan" ? "grabbing" : "grab";
+        }
+      }
       if ((e.ctrlKey || e.metaKey) && k === "z") {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -2156,7 +2363,18 @@
     window.addEventListener("keyup", (e) => {
       const k = e.key.toLowerCase();
       if (S.walk) S.walk.keys[k] = false;
-      if (k === " ") S.space_ = false;
+      if (e.code === "Space" || k === " ") {
+        S.space_ = false;
+        if (!S.drag || S.drag.tool !== "pan") {
+          canvas.style.cursor = "";
+        }
+      }
+    });
+    window.addEventListener("blur", () => {
+      S.space_ = false;
+      if (!S.drag || S.drag.tool !== "pan") {
+        canvas.style.cursor = "";
+      }
     });
   }
 
@@ -2189,7 +2407,7 @@
         "<b>7. ほぞん</b><br>" +
         "「ファイルに だす」→ <code>js/maps/</code> に いれる（地形も イベントも これ 1つに 入ります）。<br>" +
         "あたらしい 面を 作った ときだけ「📋 あたらしい 面の コード」で <code>js/stages/◯◯.js</code> の ひな形を 出します。<br><br>" +
-        "そのほか：マウスホイールで 大きさ／まん中ボタン（か スペース）で うごかす／Ctrl+Z で もどす。" +
+        "そのほか：マウスホイールで 拡大縮小／<b>スペースキーを押しながらドラッグ</b>（またはマウスホイールボタン/右ボタン）で画面を動かす／Ctrl+Z で もどす。" +
         "さぎょうは この パソコンに じどうで ほぞんされます。"
     );
   }
@@ -2208,19 +2426,61 @@
   buildUI();
   bind();
 
+  // 起動時のマップ読み込み：
+  // ブラウザ環境（開いたタイミング）では、常に本番マップ（js/maps/◯◯.js）を最新として読み込む。
+  // （古い localStorage の下書きが原因で「一番昔のマップ」が開いてしまう問題を防止）
+  const isBrowser = typeof location !== "undefined" && Boolean(location.href || location.search !== undefined);
   let start = null;
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) start = JSON.parse(raw);
-  } catch (e) {
-    start = null;
+
+  if (isBrowser) {
+    const queryStage = location.search
+      ? (new URLSearchParams(location.search).get("stage") || "stage1")
+      : "stage1";
+    const stageToLoad = (window.MAPS && window.MAPS[queryStage]) ? queryStage : "stage1";
+    if (window.MAPS && window.MAPS[stageToLoad]) {
+      start = JSON.parse(JSON.stringify(window.MAPS[stageToLoad]));
+    }
+  } else {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) start = JSON.parse(raw);
+    } catch (e) {
+      start = null;
+    }
   }
+
   S.data = fillEventDefaults(start && start.world ? start : newData());
+  S.data.updatedAt = Date.now();
   S.excludeSet = new Set(S.data.fill.exclude || []);
+
+  const selStage = $("f-maps");
+  if (selStage) selStage.value = S.data.name || "stage1";
+
   rebuildFill();
   syncForm();
   renderEventPanels();
   resize();
   fitView();
   requestAnimationFrame(loop);
+
+  if (isBrowser) {
+    // 初回起動時も本番マップのデータを localStorage に同期
+    try {
+      const jsonStr = JSON.stringify(S.data);
+      localStorage.setItem(SAVE_KEY, jsonStr);
+      localStorage.setItem("riiko.map." + String(S.data.name).toLowerCase(), jsonStr);
+      localStorage.setItem("riiko.map.last_updated", String(Date.now()));
+    } catch (e) {}
+
+    // さらにバックグラウンドで最新ファイルを fetch してディスク上の最新内容があれば即時更新
+    (async () => {
+      try {
+        const stageName = S.data.name || "stage1";
+        const fresh = await loadStageFile(stageName);
+        if (fresh && fresh.world) {
+          setData(fresh);
+        }
+      } catch (e) {}
+    })();
+  }
 })();

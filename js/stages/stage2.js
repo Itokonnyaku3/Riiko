@@ -37,7 +37,7 @@
       if: "pikaJoined",
       sprite: "🧚",
       name: "ベル",
-      size: 68,
+      size: 46,
       potions: 2, // この面で 薬を くれる 回数
       // かってに しゃべる ことば（おなじ ことは つづけて 言わない）
       lines: {
@@ -63,7 +63,9 @@
 
     enemies: MAP.enemies.map((e) => {
       const { walk, ...rest } = e;
-      return walk ? { ...rest, walk: ENEMY_WALK } : rest;
+      const walkKey = e.walkKey || (typeof walk === "string" ? walk : "enemy");
+      const walkData = (window.WALKS && window.WALKS[walkKey]) || ENEMY_WALK;
+      return walk ? { ...rest, walk: walkData, walkKey: walkKey } : rest;
     }),
     chests: MAP.chests,
     gates: MAP.gates,

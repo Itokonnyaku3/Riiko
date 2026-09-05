@@ -103,30 +103,61 @@
     return Math.round(x) + "," + Math.round(y);
   }
 
+  // 疑似乱数ハッシュ（同じ座標なら常に同じ値を返す）
+  function fillHash(x, y) {
+    const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return n - Math.floor(n);
+  }
+
   // ---- そとがわを 木（かべ）で うめる ----
-  //   ならびが きかいてきに ならないよう、少しだけ ずらして おく。
-  //   おなじ しきなので、ツールで 見たものと ゲームの中身は かならず 同じになる。
+  //   整列感をなくし、千鳥格子（ヘックス）＋極座標ハッシュゆらぎで自然な森に配置する。
+  //   同じ式なので、ツールで見たものとゲームの中身は必ず同じになる。
   function buildFill(data) {
     const f = data.fill;
     if (!f || !f.on) return [];
     const gap = f.gap || 58;
     const r = f.r || 26;
-    const jit = f.jitter == null ? 14 : f.jitter;
     const margin = f.margin == null ? 24 : f.margin;
-    const sprite = f.sprite || "tree";
-    const mod = jit * 2 + 1;
+    const baseSprite = f.sprite || "tree";
     const ex = new Set(f.exclude || []);
     const out = [];
-    for (let x = 20; x < data.world.width; x += gap) {
-      for (let y = 20; y < data.world.height; y += gap) {
-        const jx = jit ? ((x * 73 + y * 151) % mod) - jit : 0;
-        const jy = jit ? ((x * 151 + y * 73) % mod) - jit : 0;
-        const tx = x + jx,
-          ty = y + jy;
+
+    // 千鳥格子（ヘックス）配置: 行ステップは gap * sqrt(3)/2 ≈ gap * 0.866
+    const rowStep = gap * 0.866;
+    let rowIndex = 0;
+
+    for (let gy = 20; gy < data.world.height + gap * 0.5; gy += rowStep) {
+      // 奇数行は半ピッチ横にずらす（千鳥）
+      const rowOffset = (rowIndex % 2 === 1) ? gap * 0.5 : 0;
+      for (let gx = 20 + rowOffset; gx < data.world.width + gap * 0.5; gx += gap) {
+        // ハッシュから角度と距離をランダムに決定
+        const h1 = fillHash(gx, gy);
+        const h2 = fillHash(gx + 37.1, gy + 91.3);
+        const angle = h1 * Math.PI * 2;
+        // 最大振幅 gap * 0.35 のゆらぎ
+        const dist = Math.sqrt(h2) * (gap * 0.35);
+
+        const tx = Math.round(gx + Math.cos(angle) * dist);
+        const ty = Math.round(gy + Math.sin(angle) * dist);
+
+        if (tx < -gap || tx > data.world.width + gap || ty < -gap || ty > data.world.height + gap) continue;
         if (inWalk(data, tx, ty, margin)) continue;
         if (ex.size && ex.has(excludeKey(tx, ty))) continue;
+
+        // treeの場合は自然なバリエーション（tree, tree2, tree-small）を軽く散らす
+        let sprite = baseSprite;
+        if (baseSprite === "tree") {
+          const h3 = fillHash(gx + 17.5, gy + 43.7);
+          if (h3 < 0.12) {
+            sprite = "tree2";
+          } else if (h3 < 0.20) {
+            sprite = "tree-small";
+          }
+        }
+
         out.push({ x: tx, y: ty, r: r, sprite: sprite, fill: true });
       }
+      rowIndex++;
     }
     // 下（手まえ）に ある ものほど あとで かく。木が しぜんに かさなる。
     out.sort((a, b) => a.y - b.y);
@@ -148,6 +179,7 @@
       },
       obstacles: buildFill(data)
         .concat((data.objects || []).map((o) => ({ ...o })))
+        .concat((data.obstacles || []).map((o) => ({ ...o })))
         .sort((a, b) => a.y - b.y), // 手まえの ものが 上に かさなる
       decorations: (data.decorations || []).map((d) => ({ ...d })),
       markers: (data.markers || []).map((m) => ({ ...m })),
@@ -159,7 +191,18 @@
       //   ここでは true/false だけ わたし、面ファイル（js/stages/◯◯.js）が つけかえる。
       player: data.player ? { ...data.player } : null,
       enemies: (data.enemies || []).map((e) => ({ ...e })),
-      npcs: (data.npcs || []).map((n) => ({ ...n })),
+      npcs: (data.npcs || [])
+        .filter((n) => {
+          // stage2 で重複していた古い黄色絵文字妖精NPC（s2n2 または 妖精の ベル）を除外
+          if (
+            data.name === "stage2" &&
+            (n.id === "s2n2" || n.name === "妖精の ベル" || (n.sprite === "🧚" && n.name !== "ベル"))
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((n) => ({ ...n })),
       chests: (data.chests || []).map((c) => ({ ...c })),
       checkpoints: (data.checkpoints || []).map((c) => ({ ...c })),
       triggers: (data.triggers || []).map((t) => ({ ...t })),
@@ -168,6 +211,284 @@
       hints: (data.hints || []).map((h) => ({ ...h })),
       intro: data.intro ? JSON.parse(JSON.stringify(data.intro)) : null,
     };
+  }
+
+  // ---- マップエディタ連携：編集されたマップデータの取得 ----
+  function getEditedMap(stageId) {
+    if (!stageId || typeof localStorage === "undefined") return null;
+    const target = String(stageId).toLowerCase();
+    try {
+      // 1. 特定面のキー (riiko.map.stage1 など)
+      const specific = localStorage.getItem("riiko.map." + target);
+      if (specific) {
+        const d = JSON.parse(specific);
+        if (d && d.world) return d;
+      }
+      // 2. 現在エディタで編集中のマップ (riiko.mapeditor.v1)
+      const current = localStorage.getItem("riiko.mapeditor.v1");
+      if (current) {
+        const d = JSON.parse(current);
+        if (d && d.world) {
+          const dName = String(d.name || "").toLowerCase();
+          if (dName === target || (!dName && target === "stage1")) {
+            return d;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("MapData.getEditedMap error:", e);
+    }
+    return null;
+  }
+
+  // ---- 友達（ハナ）がさらわれるオープニング（カットシーン）の作成 ----
+  function createPrologueCutscene(px, py) {
+    const x = px != null ? px : 514;
+    const y = py != null ? py : 1852;
+    return {
+      once: "prologueDone",
+      cutscene: {
+        steps: [
+          {
+            look: { x: x, y: y },
+            wait: 0.8,
+          },
+          {
+            spawn: {
+              id: "hana",
+              x: x + 66,
+              y: y - 12,
+              sprite: "👧",
+              size: 72,
+              name: "ハナ",
+              walkKey: "hana",
+            },
+          },
+          {
+            name: "ハナ",
+            lines: [
+              "リイコ、きょうも あそぼ！",
+              "きょうは どこまで 行く？",
+            ],
+          },
+          {
+            name: "リイコ",
+            lines: [
+              "森の 入口まで！ …あ、でも ばあちゃんに おこられるかな",
+            ],
+          },
+          {
+            spawn: {
+              id: "mant",
+              x: x + 16,
+              y: y - 250,
+              sprite: "🥷",
+              size: 64,
+              name: "？？？",
+            },
+          },
+          {
+            look: { x: x + 16, y: y - 180 },
+            sfx: "down",
+            wait: 0.7,
+          },
+          {
+            name: "ハナ",
+            lines: ["…だれ？"],
+          },
+          {
+            move: {
+              id: "mant",
+              x: x + 56,
+              y: y - 22,
+              sec: 0.9,
+            },
+          },
+          {
+            name: "かげマント",
+            lines: ["さがして いたぞ。…その 子を もらって いく"],
+          },
+          {
+            sfx: "hurt",
+            wait: 0.3,
+          },
+          {
+            name: "ハナ",
+            lines: ["きゃっ！ リ、リイコ —— たすけて！"],
+          },
+          {
+            move: {
+              id: "mant",
+              x: x - 34,
+              y: y - 300,
+              sec: 1.4,
+              with: ["hana"],
+            },
+          },
+          {
+            look: { x: x - 34, y: y - 300 },
+            wait: 0.5,
+          },
+          {
+            despawn: ["mant", "hana"],
+          },
+          {
+            name: "リイコ",
+            lines: [
+              "ハナ！！",
+              "…行っちゃった。北の 森の ほうへ。",
+            ],
+          },
+          {
+            look: { x: x, y: y },
+            wait: 0.5,
+          },
+          {
+            mutter: "（剣を もって、ハナを たすけに 行かなきゃ！）",
+          },
+        ],
+      },
+    };
+  }
+
+  // ---- マップエディタ連携：編集されたマップデータをステージに適用 ----
+  function applyMapToStage(stage, rawData) {
+    if (!stage || !rawData) return stage;
+    const built = build(rawData);
+    const PLAYER_WALK = (typeof window !== "undefined" && window.WALKS && window.WALKS.player) || null;
+    const ENEMY_WALK = (typeof window !== "undefined" && window.WALKS && window.WALKS.enemy) || null;
+
+    if (built.world) stage.world = built.world;
+    if (built.obstacles) stage.obstacles = built.obstacles;
+    if (built.decorations) stage.decorations = built.decorations;
+
+    // 主人公
+    if (built.player && built.player.x != null) {
+      stage.player = {
+        ...(stage.player || {}),
+        ...built.player,
+        walk: (stage.player && stage.player.walk) || PLAYER_WALK,
+      };
+    }
+
+    // 敵：スタート地点から近すぎる敵（意図しない配置）は除外
+    if (Array.isArray(rawData.enemies)) {
+      const px = (stage.player && stage.player.x != null) ? stage.player.x : 514;
+      const py = (stage.player && stage.player.y != null) ? stage.player.y : 1852;
+      const filtered = built.enemies.filter((e) => {
+        if (e.behavior === "dummy" || e.dummy || e.id === "kakashi1") return true;
+        const d = Math.hypot((e.x || 0) - px, (e.y || 0) - py);
+        return d > 480; // スタート地点のすぐ右や近くにいる通常の敵を除外
+      });
+      stage.enemies = filtered.map((e) => {
+        const { walk, ...rest } = e;
+        const walkKey = e.walkKey || (typeof walk === "string" ? walk : "enemy");
+        const walkData = (typeof window !== "undefined" && window.WALKS && window.WALKS[walkKey]) || ENEMY_WALK;
+        return walk ? { ...rest, walk: walkData, walkKey: walkKey } : rest;
+      });
+    }
+
+    // NPC：エディタの配置（x, y）を反映しつつ、セリフやシナリオフラグはJSファイル側の最新版を優先
+    if (Array.isArray(rawData.npcs) && rawData.npcs.length > 0) {
+      const stageKey = rawData.name || (stage.title && stage.title.includes("2面") ? "stage2" : "stage1");
+      const fileMap = (typeof window !== "undefined" && window.MAPS && window.MAPS[stageKey]) || null;
+      const fileNpcMap = {};
+      if (fileMap && Array.isArray(fileMap.npcs)) {
+        for (const fn of fileMap.npcs) fileNpcMap[fn.id] = fn;
+      }
+      stage.npcs = built.npcs.map((n) => {
+        const fileNpc = fileNpcMap[n.id];
+        if (fileNpc) {
+          return {
+            ...n,
+            name: fileNpc.name || n.name,
+            lines: fileNpc.lines || n.lines,
+            variants: fileNpc.variants || n.variants,
+            set: fileNpc.set !== undefined ? fileNpc.set : n.set,
+            ifNot: fileNpc.ifNot !== undefined ? fileNpc.ifNot : n.ifNot,
+            if: fileNpc.if !== undefined ? fileNpc.if : n.if,
+            r: fileNpc.r || n.r,
+          };
+        }
+        return n;
+      });
+    }
+
+    // 宝箱・チェックポイント・トリガー・出口・ゲート・ヒント
+    if (Array.isArray(rawData.chests)) stage.chests = built.chests;
+    if (Array.isArray(rawData.checkpoints)) stage.checkpoints = built.checkpoints;
+    if (Array.isArray(rawData.triggers)) stage.triggers = built.triggers;
+    if (Array.isArray(rawData.gates)) stage.gates = built.gates;
+    if (built.exit) stage.exit = built.exit;
+    if (Array.isArray(rawData.hints) && rawData.hints.length > 0) stage.hints = built.hints;
+
+    // オープニング（友達がさらわれるカットシーン）
+    // ★オープニングは 1面（stage1）だけで再生する
+    const isStage1 = (rawData.name && String(rawData.name).toLowerCase() === "stage1") || (stage && stage.title && stage.title.includes("1面"));
+    const introSteps = (rawData.intro && rawData.intro.cutscene && rawData.intro.cutscene.steps) || [];
+    if (introSteps.length > 1) {
+      stage.intro = built.intro;
+    } else if (isStage1) {
+      const px = (stage.player && stage.player.x != null) ? stage.player.x : 514;
+      const py = (stage.player && stage.player.y != null) ? stage.player.y : 1852;
+      stage.intro = createPrologueCutscene(px, py);
+    } else {
+      stage.intro = null;
+    }
+
+    return stage;
+  }
+
+  // ---- エディタ連携：保存 ----
+  function saveEditedMap(stageId, rawData) {
+    if (!stageId || !rawData || typeof localStorage === "undefined") return false;
+    const key = "riiko.map." + String(stageId).toLowerCase();
+    try {
+      const fileMap = (typeof window !== "undefined" && window.MAPS && window.MAPS[stageId]) || null;
+      const fileTime = (fileMap && fileMap.updatedAt) || 0;
+      rawData.updatedAt = Math.max(Date.now(), fileTime + 1000);
+      localStorage.setItem(key, JSON.stringify(rawData));
+      localStorage.setItem("riiko.mapeditor.v1", JSON.stringify(rawData));
+      localStorage.setItem("riiko.map.last_updated", String(Date.now()));
+      if (typeof BroadcastChannel !== "undefined") {
+        try {
+          const ch = new BroadcastChannel("riiko-map-sync");
+          ch.postMessage({ type: "map-updated", stageId: stageId, timestamp: Date.now(), map: rawData });
+          ch.close();
+        } catch (e) {}
+      }
+      return true;
+    } catch (e) {
+      console.warn("MapData.saveEditedMap error:", e);
+      return false;
+    }
+  }
+
+  // ---- エディタ連携：削除（リセット） ----
+  function clearEditedMap(stageId) {
+    if (!stageId || typeof localStorage === "undefined") return false;
+    const key = "riiko.map." + String(stageId).toLowerCase();
+    try {
+      localStorage.removeItem(key);
+      const cur = localStorage.getItem("riiko.mapeditor.v1");
+      if (cur) {
+        const d = JSON.parse(cur);
+        if (d && String(d.name || "").toLowerCase() === String(stageId).toLowerCase()) {
+          localStorage.removeItem("riiko.mapeditor.v1");
+        }
+      }
+      localStorage.setItem("riiko.map.last_updated", String(Date.now()));
+      if (typeof BroadcastChannel !== "undefined") {
+        try {
+          const ch = new BroadcastChannel("riiko-map-sync");
+          ch.postMessage({ type: "map-cleared", stageId: stageId, timestamp: Date.now() });
+          ch.close();
+        } catch (e) {}
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   window.MapData = {
@@ -182,5 +503,10 @@
     buildFill,
     build,
     excludeKey,
+    createPrologueCutscene,
+    getEditedMap,
+    applyMapToStage,
+    saveEditedMap,
+    clearEditedMap,
   };
 })();
