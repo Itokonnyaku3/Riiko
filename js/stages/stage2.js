@@ -23,7 +23,7 @@
 
   window.STAGES.stage2 = {
     title: "2面 ささやきの谷",
-    next: null, // まだ さきは ない
+    next: "stage3", // 3面「静寂の湖」へ続く
 
     world: MAP.world,
     obstacles: MAP.obstacles,

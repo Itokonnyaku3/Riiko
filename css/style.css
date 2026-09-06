@@ -176,6 +176,37 @@ canvas#game {
   color: #aaa;
 }
 
+/* 選択肢ボタンエリア */
+.dialogue-choices {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dialogue-choices.hidden {
+  display: none;
+}
+.dialogue-choice-btn {
+  padding: 10px 14px;
+  border: 2px solid #5aa572;
+  border-radius: 12px;
+  background: rgba(240, 255, 240, 0.95);
+  color: #1b3d22;
+  font-size: 15px;
+  font-weight: bold;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+.dialogue-choice-btn:hover,
+.dialogue-choice-btn:active {
+  background: #5aa572;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
 /* ===== バーチャルジョイスティック（スライドパッド） ===== */
 .joystick-container {
   position: absolute;
@@ -305,12 +336,20 @@ canvas#game {
   display: none;
 }
 
-/* ヒントボタン（ピカが 仲間に なったら 出る） */
+/* ヒントボタン・ぶき切り替えボタン（ピカが 仲間に なったら／ぶきが増えたら 出る） */
 .abtn.small {
   width: 58px;
   height: 58px;
   font-size: 26px;
   align-self: flex-end;
+}
+#btn-weapon-swap {
+  background: rgba(230, 245, 255, 0.85);
+  border: 2px solid rgba(70, 130, 180, 0.6);
+  font-size: 24px;
+}
+#btn-weapon-swap:active {
+  background: rgba(100, 180, 255, 0.95);
 }
 .abtn.hidden {
   display: none;

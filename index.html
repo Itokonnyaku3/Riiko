@@ -57,6 +57,7 @@
     <div id="dialogue" class="hidden">
       <div id="dialogue-name"></div>
       <div id="dialogue-text"></div>
+      <div id="dialogue-choices" class="dialogue-choices hidden"></div>
       <div class="dialogue-more">▼ タップでつぎへ</div>
     </div>
 
@@ -71,9 +72,10 @@
       </div>
     </div>
 
-    <!-- けん（こうげき）。もっている ものだけ ここに ふえる -->
+    <!-- けん・ぶき（こうげき）。もっている ものだけ ここに ふえる -->
     <div id="actions">
-      <button id="btn-sword" class="abtn" aria-label="けん">🗡️</button>
+      <button id="btn-sword" class="abtn" aria-label="ぶき">🗡️</button>
+      <button id="btn-weapon-swap" class="abtn small hidden" aria-label="ぶききりかえ" title="ぶきを きりかえる">🔁</button>
       <button id="btn-hint" class="abtn small hidden" aria-label="ヒント">💡</button>
     </div>
 
@@ -91,10 +93,12 @@
 <!-- 地形（マップ作成ツールの 出力。ふえたら ここに ふやす） -->
 <script src="js/maps/stage1.js?v=20260906_1145"></script>
 <script src="js/maps/stage2.js?v=20260906_1145"></script>
+<script src="js/maps/stage3.js?v=20260906_2200"></script>
 <!-- ぜんたいの せってい（あいことば・キャラの絵・面の じゅんばん） -->
 <script src="js/scenario.js?v=20260906_1145"></script>
 <!-- 面ごとの おはなし -->
 <script src="js/stages/stage1.js?v=20260906_1145"></script>
 <script src="js/stages/stage2.js?v=20260906_1145"></script>
+<script src="js/stages/stage3.js?v=20260906_2200"></script>
 <script src="js/engine.js?v=20260906_1145"></script>
 <script src="js/main.js?v=20260906_1145"></script>

@@ -134,6 +134,11 @@
       },
       talk: () => { tone("sine", 620, 620, 0.05, 0.06); },
       bounce: () => { tone("sine", 320, 540, 0.12, 0.12); noise(0.04, 0.04); },
+      boomerang: () => { tone("sine", 580, 720, 0.08, 0.08); tone("triangle", 400, 600, 0.10, 0.07, 0.05); },
+      catch: () => { tone("sine", 880, 1100, 0.08, 0.12); },
+      switch: () => { tone("triangle", 800, 1200, 0.06, 0.14); noise(0.04, 0.05); },
+      shield: () => { tone("square", 900, 450, 0.08, 0.15); noise(0.08, 0.10); },
+      barrier: () => { tone("sawtooth", 180, 80, 0.40, 0.18); noise(0.25, 0.12); },
     };
     return {
       play(name) {
@@ -497,8 +502,12 @@
     bullets: [],
     floaters: [], // ふわっと出る文字（ダメージなど）
     gates: [], // とびら（なぞ解きで あく）
+    crystalSwitches: [], // クリスタルスイッチ（遠隔スイッチ）
     exit: null, // つぎのステージへの 出口
     items: {}, // あつめたアイテムの数（例：{ ほうせき: 2 }）
+    weapons: ["sword"], // 所持武器リスト
+    currentWeapon: "sword", // 現在装備している武器
+    boomerang: null, // 飛行中のブーメラン
     bossDefeated: false,
     keys: {},
     stick: { x: 0, y: 0 }, // バーチャルジョイスティック入力（-1.0〜+1.0）
@@ -1266,6 +1275,56 @@
       }
     }
 
+    // クリスタルスイッチ（遠隔スイッチ）
+    G.crystalSwitches = (scenario.crystalSwitches || []).map((s) => ({
+      ...s,
+      active: !!G.flags[s.flag],
+    }));
+
+    // 武器設定
+    const sid = G.stageId || (scenario && (scenario.id || scenario.name));
+    if (scenario.weapons) {
+      G.weapons = [...scenario.weapons];
+    } else if (sid === "stage3" || G.flags.hasBoomerang) {
+      G.weapons = ["sword", "boomerang"];
+    } else {
+      G.weapons = ["sword"];
+    }
+    if (!G.weapons.includes(G.currentWeapon)) {
+      G.currentWeapon = G.weapons[0] || "sword";
+    }
+    G.boomerang = null;
+    updateWeaponUI();
+
+    // ミィ（仲間2）の復元
+    if ((G.flags.miiJoined || scenario.partner) && !G.partner) {
+      const partnerSrc = scenario.partner || { sprite: "🐱", name: "ミィ", maxHp: 10, attack: 4 };
+      const partnerWalk = (window.WALKS && window.WALKS.mii) || null;
+      G.partner = {
+        x: G.player.x - 44,
+        y: G.player.y + 26,
+        sprite: partnerSrc.sprite || "🐱",
+        name: partnerSrc.name || "ミィ",
+        maxHp: partnerSrc.maxHp || 10,
+        hp: partnerSrc.maxHp || 10,
+        attack: partnerSrc.attack || 4,
+        state: "follow",
+        target: null,
+        gotoX: 0,
+        gotoY: 0,
+        atkCd: 0,
+        restT: 0,
+        bob: 0,
+        wanderT: 0,
+        idleT: 0,
+        orbitA: 0,
+        walk: partnerWalk,
+      };
+      if (partnerWalk) {
+        initWalker(G.partner, { walk: partnerWalk, size: 54 }, 54);
+      }
+    }
+
     G.exit = scenario.exit ? { ...scenario.exit, _done: false } : null;
     G.bossDefeated = false;
     G.bullets = [];
@@ -1520,6 +1579,249 @@
   }
 
   // =========================================================
+  //  仲間2（猫ミィ）の動的加入
+  // =========================================================
+  function addPartner(config) {
+    const p = G.player;
+    const partnerWalk = (window.WALKS && window.WALKS.mii) || null;
+    G.partner = {
+      x: config && config.x !== undefined ? config.x : p.x - 44,
+      y: config && config.y !== undefined ? config.y : p.y + 26,
+      sprite: (config && config.sprite) || "🐱",
+      name: (config && config.name) || "ミィ",
+      maxHp: (config && config.maxHp) || 10,
+      hp: (config && config.maxHp) || 10,
+      attack: (config && config.attack) || 4,
+      state: "follow",
+      target: null,
+      gotoX: 0,
+      gotoY: 0,
+      atkCd: 0,
+      restT: 0,
+      bob: 0,
+      wanderT: 0,
+      idleT: 0,
+      orbitA: 0,
+      walk: partnerWalk,
+    };
+    if (partnerWalk) {
+      initWalker(G.partner, { walk: partnerWalk, size: 54 }, 54);
+    }
+    G.flags.miiJoined = true;
+    Sfx.play("join");
+    addFloater(G.partner.x, G.partner.y - 40, "🐱 ミィが仲間に加わった！", "#ffdd44");
+    madeProgress();
+    saveGame();
+  }
+
+  // =========================================================
+  //  武器システム（剣 ⇔ 風のブーメラン）
+  // =========================================================
+  function swapWeapon() {
+    if (!G.weapons || G.weapons.length <= 1) return;
+    const idx = G.weapons.indexOf(G.currentWeapon);
+    const nextIdx = (idx + 1) % G.weapons.length;
+    G.currentWeapon = G.weapons[nextIdx];
+    updateWeaponUI();
+    Sfx.play("talk");
+    const weaponName = G.currentWeapon === "boomerang" ? "風のブーメラン🪃" : "けん🗡️";
+    addFloater(G.player.x, G.player.y - 36, weaponName, "#8fe0ff");
+  }
+
+  function updateWeaponUI() {
+    const swordBtn = document.getElementById("btn-sword");
+    const swapBtn = document.getElementById("btn-weapon-swap");
+    if (!swordBtn) return;
+    if (G.currentWeapon === "boomerang") {
+      swordBtn.textContent = "🪃";
+      if (swordBtn.setAttribute) swordBtn.setAttribute("aria-label", "ブーメラン");
+    } else {
+      swordBtn.textContent = "🗡️";
+      if (swordBtn.setAttribute) swordBtn.setAttribute("aria-label", "けん");
+    }
+    if (swapBtn && swapBtn.classList && swapBtn.classList.toggle) {
+      const hasMultiple = G.weapons && G.weapons.length > 1;
+      swapBtn.classList.toggle("hidden", !hasMultiple);
+    }
+  }
+
+  function useWeapon() {
+    if (G.currentWeapon === "boomerang") {
+      throwBoomerang();
+    } else {
+      swingSword();
+    }
+  }
+
+  // =========================================================
+  //  風のブーメラン（トリッキーな遠隔・旋回・スタン武器）
+  // =========================================================
+  function throwBoomerang() {
+    const p = G.player;
+    if (!G.running || G.paused || G.downT > 0) return;
+    if (G.boomerang) return; // 1つだけ飛べる
+    if (p.atkCd > 0) return;
+
+    p.atkCd = 0.32;
+    p.atkT = 0.20;
+
+    const dirX = p.dirX || 0;
+    const dirY = p.dirY || 1;
+    // 直交右ベクトル（旋回用）
+    const sideX = -dirY;
+    const sideY = dirX;
+
+    G.boomerang = {
+      x: p.x,
+      y: p.y,
+      startX: p.x,
+      startY: p.y,
+      dirX: dirX,
+      dirY: dirY,
+      sideX: sideX,
+      sideY: sideY,
+      speed: 400,
+      maxDist: 240,
+      curve: 0,
+      returning: false,
+      angle: 0,
+      spinSpeed: 28,
+      r: 16,
+      life: 2.6,
+      hitIds: {},
+    };
+    Sfx.play("boomerang");
+  }
+
+  function updateBoomerang(dt) {
+    const b = G.boomerang;
+    if (!b) return;
+
+    b.angle += b.spinSpeed * dt;
+    b.life -= dt;
+    if (b.life <= 0) {
+      G.boomerang = null;
+      return;
+    }
+
+    const p = G.player;
+    if (!b.returning) {
+      // 往路：前方に進みつつ右へ弧を描いてカーブ
+      b.curve += dt * 3.2;
+      const fSpd = b.speed * Math.max(0.2, 1 - b.curve * 0.8);
+      const sSpd = b.speed * 0.75 * Math.sin(Math.min(1, b.curve) * Math.PI);
+      b.x += (b.dirX * fSpd + b.sideX * sSpd) * dt;
+      b.y += (b.dirY * fSpd + b.sideY * sSpd) * dt;
+
+      const distTraveled = Math.hypot(b.x - b.startX, b.y - b.startY);
+
+      // 壁・障害物判定（手元の誤爆防止のため発射直後は除外）
+      let hitObs = false;
+      if (distTraveled > 28) {
+        for (const obs of G.obstacles) {
+          if (obs.r === 0) continue;
+          if (Math.hypot(b.x - obs.x, b.y - obs.y) < b.r + obs.r) {
+            hitObs = true;
+            break;
+          }
+        }
+      }
+      if (distTraveled >= b.maxDist || hitObs || b.curve >= 1.0) {
+        b.returning = true;
+        Sfx.play("bounce");
+      }
+    } else {
+      // 復路：プレイヤーへホーミング
+      const dx = p.x - b.x;
+      const dy = p.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 26) {
+        G.boomerang = null;
+        Sfx.play("catch");
+        return;
+      }
+      const spd = b.speed * 1.15;
+      b.x += (dx / d) * spd * dt;
+      b.y += (dy / d) * spd * dt;
+    }
+
+    // 敵との判定
+    for (const e of G.enemies) {
+      if (!e.alive) continue;
+      if (b.hitIds[e.id]) continue;
+      const ed = Math.hypot(b.x - e.x, b.y - e.y);
+      if (ed < b.r + ENEMY_R) {
+        b.hitIds[e.id] = true;
+        let dmg = Math.max(2, Math.round(p.attack * 0.65));
+        let praise = "スタン！🌀";
+
+        // 盾持ち敵のガード判定
+        if (e.behavior === "shield") {
+          const eFaceX = p.x - e.x;
+          const eFaceY = p.y - e.y;
+          const eDist = Math.hypot(eFaceX, eFaceY) || 1;
+          const bMoveX = b.returning ? (p.x - b.x) : (b.dirX + b.sideX * 0.5);
+          const bMoveY = b.returning ? (p.y - b.y) : (b.dirY + b.sideY * 0.5);
+          const bLen = Math.hypot(bMoveX, bMoveY) || 1;
+          // 敵の向いている正面とブーメラン進行方向の向き
+          const dot = (eFaceX / eDist) * (bMoveX / bLen) + (eFaceY / eDist) * (bMoveY / bLen);
+          if (dot < -0.2 && e.chargeState !== "dizzy") {
+            // 正面から当たるとガードされる
+            addFloater(e.x, e.y - 38, "ガード！🛡️", "#a0c0ff");
+            Sfx.play("shield");
+            b.returning = true;
+            continue;
+          } else {
+            // 背後や横から当たるとガード崩し大ダメージ＋スタン！
+            dmg = Math.round(p.attack * 1.2);
+            praise = "ガードくずし！💥";
+          }
+        }
+
+        // スタン状態にする
+        e.chargeState = "dizzy";
+        e.chargeT = 3.2; // 3.2秒スタン
+        hitEnemy(e, dmg, b.dirX, b.dirY, praise);
+        b.returning = true;
+      }
+    }
+
+    // クリスタルスイッチとの判定（遠隔で当てやすいよう判定を広めに）
+    for (const s of (G.crystalSwitches || [])) {
+      if (s.active) continue;
+      const sd = Math.hypot(b.x - s.x, b.y - s.y);
+      if (sd < b.r + (s.r || 26) + 18) {
+        activateCrystalSwitch(s);
+        b.returning = true;
+      }
+    }
+  }
+
+  // 遠隔クリスタルスイッチ起動
+  function activateCrystalSwitch(s) {
+    s.active = true;
+    if (s.flag) G.flags[s.flag] = true;
+    Sfx.play("switch");
+    Sfx.play("solved");
+    addFloater(s.x, s.y - 32, "スイッチON！✨", "#55ffaa");
+    G.shake = 6;
+    if (s.targetGateId) {
+      for (const g of G.gates) {
+        if (g.id === s.targetGateId) {
+          g.open = true;
+          G.obstacles = G.obstacles.filter((o) => o.gateId !== g.id);
+          addFloater(g.x || s.x, g.y || s.y, "ゲートが開いた！🚪", "#ffff88");
+        }
+      }
+    }
+    if (s.message) {
+      Dialogue.open(s.name || "仕掛け", [s.message]);
+    }
+    madeProgress();
+    saveGame();
+  }
+
+  // =========================================================
   //  剣で たたかう（Ph1）
   // =========================================================
   const SWORD_REACH = 56; // 剣の とどく ながさ
@@ -1556,13 +1858,31 @@
       const facing = (dx / d) * p.dirX + (dy / d) * p.dirY;
       if (facing < arc) continue; // うしろ・よこすぎる ものには 当たらない
 
+      // 盾持ち敵の正面ガード判定
+      if (e.behavior === "shield" && e.chargeState !== "dizzy") {
+        const dot = (p.dirX * (e.dirX || 0)) + (p.dirY * (e.dirY || 0));
+        const miiDistraction = G.partner && G.partner.state === "attack" && G.partner.target === e;
+        if (dot < -0.25 && !miiDistraction) {
+          addFloater(e.x, e.y - 38, "ガード！🛡️", "#a0c0ff");
+          Sfx.play("shield");
+          e.knockX = (dx / d) * 120;
+          e.knockY = (dy / d) * 120;
+          e.knockT = 0.1;
+          continue;
+        }
+      }
+
       // ---- ごほうび：どれか 1つだけ つく ----
       //   ジャスト反げき（てきが こうげきした すぐ あと）… 2ばい
       //   目を まわして いる ところ            … 2ばい
       //   3だんめ                              … 1.8ばい
       let dmg = p.attack;
       let praise = null;
-      if (e.attackedT < JUST_WINDOW || e.chargeState === "dizzy") {
+      const miiDistraction = G.partner && G.partner.state === "attack" && G.partner.target === e;
+      if (e.behavior === "shield" && miiDistraction) {
+        dmg = Math.round(p.attack * 1.8);
+        praise = "れんけい攻撃！✨";
+      } else if (e.attackedT < JUST_WINDOW || e.chargeState === "dizzy") {
         dmg = Math.round(p.attack * 2);
         praise = "ナイス！";
       } else if (finisher) {
@@ -1572,6 +1892,16 @@
       hitEnemy(e, dmg, dx / d, dy / d, praise);
       hitAny = true;
     }
+
+    // 剣でのクリスタルスイッチ起動
+    for (const s of (G.crystalSwitches || [])) {
+      if (s.active) continue;
+      const d = Math.hypot(s.x - p.x, s.y - p.y);
+      if (d < reach + (s.r || 24)) {
+        activateCrystalSwitch(s);
+      }
+    }
+
     return hitAny;
   }
 
@@ -1731,6 +2061,7 @@
     }
     updatePlayer(dt);
     checkTriggers(); // ぶつかって発生するイベント
+    updateBoomerang(dt); // 風のブーメラン
     updatePartner(dt);
     checkFairyJoin();
     if (G.fairy) updateFairy(dt);
@@ -2084,6 +2415,7 @@
         // ★つぶやき（小さな もじ）… 止めない ので テンポが 落ちない
         if (t.mutter) addFloater(p.x, p.y - 46, t.mutter, "#dff");
         if (t.cutscene) startCutscene(t.cutscene);
+        else if (typeof t.action === "function") t.action(G, Sfx, Dialogue);
         else if (t.lines) Dialogue.open(t.name || "", t.lines);
         return;
       }
@@ -2418,6 +2750,33 @@
       stepToward(e, tx, ty, e.speed || 18, dt, ENEMY_R, false);
     } else if (e.behavior === "charge") {
       moveCharger(e, dt, p);
+    } else if (e.behavior === "shield") {
+      moveShieldEnemy(e, dt, p);
+    }
+  }
+
+  // ---- 盾持ち敵（正面防御・背後から攻撃かブーメラン・ミィ連携で崩す）----
+  function moveShieldEnemy(e, dt, p) {
+    if (e.chargeState === "dizzy") {
+      e.chargeT -= dt;
+      if (e.chargeT <= 0) {
+        e.chargeState = "wait";
+      }
+      return;
+    }
+    const d = dist(e.x, e.y, p.x, p.y);
+    const dx = p.x - e.x;
+    const dy = p.y - e.y;
+    // プレイヤーの方向を向く
+    if (Math.abs(dx) > Math.abs(dy)) {
+      e.dirX = dx > 0 ? 1 : -1;
+      e.dirY = 0;
+    } else {
+      e.dirX = 0;
+      e.dirY = dy > 0 ? 1 : -1;
+    }
+    if (d < (e.sight || 280) && d > 32) {
+      stepToward(e, p.x, p.y, e.speed || 36, dt, ENEMY_R, true);
     }
   }
 
@@ -3310,8 +3669,41 @@
               drawSprite("💫", ex + ox + Math.cos(a) * 14, ey + oy - top - 10, 26);
             }
           }
+          if (e.behavior === "shield") {
+            drawSprite("🛡️", ex + ox - 18, ey + oy - 4, 24);
+          }
+          if (e.chargeState === "dizzy" && e.behavior !== "charge") {
+            const a = e.phase * 3;
+            drawSprite("🌀", ex + ox + Math.cos(a) * 14, ey + oy - top - 10, 26);
+          }
           if (!e.dummy) drawHpBar(ex + ox, ey + oy - top, e.hp, e.maxHp, "#ff6b6b");
           else drawNameTag(e.name || "かかし", ex + ox, ey + oy - top);
+        },
+      });
+    }
+
+    // クリスタルスイッチ（遠隔スイッチ）
+    for (const s of (G.crystalSwitches || [])) {
+      if (!onScreen(s.x, s.y, 60)) continue;
+      renderables.push({
+        baseY: s.y + 12,
+        draw: () => {
+          const sx = s.x + ox;
+          const sy = s.y + oy;
+          ctx.save();
+          ctx.fillStyle = "#2d3848";
+          ctx.beginPath();
+          ctx.ellipse(sx, sy + 8, 18, 9, 0, 0, Math.PI * 2);
+          ctx.fill();
+          drawSprite(s.active ? "💎" : "🔷", sx, sy - 6, 32);
+          if (s.active) {
+            ctx.beginPath();
+            ctx.arc(sx, sy - 6, 20, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(100, 255, 220, 0.6)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+          }
+          ctx.restore();
         },
       });
     }
@@ -3390,6 +3782,9 @@
       }
     }
 
+    // 風のブーメラン
+    drawBoomerang(ox, oy);
+
     drawFairy(ox, oy); // 仲間1 ピカ
     drawGuide(ox, oy); // ヒント3の 光る しるし
     drawRiverCutscene(ox, oy); // 水流・ペンギン流されカットシーン演出
@@ -3427,6 +3822,27 @@
     ctx.textBaseline = "middle";
     ctx.fillText(G.titleText, viewW / 2, viewH / 2);
     ctx.globalAlpha = 1;
+  }
+
+  // 画面内のブーメラン描画
+  function drawBoomerang(ox, oy) {
+    const b = G.boomerang;
+    if (!b) return;
+    const sx = b.x + ox;
+    const sy = b.y + oy;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(b.angle);
+
+    // 旋回の風エフェクト
+    ctx.beginPath();
+    ctx.arc(0, 0, 18, 0, Math.PI * 1.5);
+    ctx.strokeStyle = "rgba(160, 230, 255, 0.75)";
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    drawSprite("🪃", 0, 0, 32);
+    ctx.restore();
   }
 
   // 左上：ハート（リイコの げんき）
@@ -3789,29 +4205,85 @@
     box: document.getElementById("dialogue"),
     nameEl: document.getElementById("dialogue-name"),
     textEl: document.getElementById("dialogue-text"),
+    choicesEl: document.getElementById("dialogue-choices"),
     lines: [],
     idx: 0,
-    open(name, lines, onClose) {
-      this.lines = lines;
+    onClose: null,
+    choices: null,
+    showingChoices: false,
+    open(name, lines, onClose, choices) {
+      this.lines = Array.isArray(lines) ? lines : [lines];
       this.idx = 0;
       this.onClose = onClose || null;
-      this.nameEl.textContent = name;
-      this.textEl.textContent = lines[0];
+      this.choices = choices || null;
+      this.showingChoices = false;
+      this.nameEl.textContent = name || "";
+      this.textEl.textContent = this.lines[0] || "";
+      if (this.choicesEl) {
+        this.choicesEl.innerHTML = "";
+        this.choicesEl.classList.add("hidden");
+      }
       this.box.classList.remove("hidden");
       G.paused = true;
       Bgm.duck(true);
+      // 1行だけで選択肢がある場合は即座に選択肢を表示
+      if (this.lines.length === 1 && this.choices && this.choices.length > 0) {
+        this.showChoices();
+      }
+    },
+    showChoices() {
+      if (!this.choicesEl || !this.choices || this.choices.length === 0) return;
+      this.showingChoices = true;
+      this.choicesEl.innerHTML = "";
+      this.choicesEl.classList.remove("hidden");
+      this.choices.forEach((c, i) => {
+        const btn = document.createElement("button");
+        btn.className = "dialogue-choice-btn";
+        btn.textContent = `${i + 1}. ${c.text}`;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.selectChoice(i);
+        });
+        this.choicesEl.appendChild(btn);
+      });
+    },
+    selectChoice(index) {
+      if (!this.choices || !this.choices[index]) return;
+      const c = this.choices[index];
+      this.close();
+      if (typeof c.onSelect === "function") {
+        c.onSelect();
+      }
     },
     advance() {
+      if (this.showingChoices) return;
       this.idx++;
-      if (this.idx >= this.lines.length) this.close();
-      else this.textEl.textContent = this.lines[this.idx];
+      if (this.idx >= this.lines.length) {
+        if (this.choices && this.choices.length > 0) {
+          this.idx = this.lines.length - 1;
+          this.showChoices();
+        } else {
+          this.close();
+        }
+      } else {
+        this.textEl.textContent = this.lines[this.idx];
+        if (this.idx === this.lines.length - 1 && this.choices && this.choices.length > 0) {
+          this.showChoices();
+        }
+      }
     },
     close() {
+      this.showingChoices = false;
+      if (this.choicesEl) {
+        this.choicesEl.innerHTML = "";
+        this.choicesEl.classList.add("hidden");
+      }
       this.box.classList.add("hidden");
       G.paused = false;
       Bgm.duck(false);
       const cb = this.onClose;
       this.onClose = null;
+      this.choices = null;
       if (cb) cb();
       // 出口の かいわが おわったら つぎの 面へ
       if (G.exit && G.exit._goNext) {
@@ -3837,17 +4309,33 @@
     });
     window.addEventListener("keydown", (e) => {
       const isAction = e.key === "j" || e.key === "J" || e.key === " ";
-      // ★かいわ中は スペース／エンター／J で「つぎへ」
+
+      // 会話中の数字キーによる選択肢決定
+      if (G.paused && Dialogue.showingChoices && (e.key === "1" || e.key === "2" || e.key === "3")) {
+        e.preventDefault();
+        Dialogue.selectChoice(parseInt(e.key, 10) - 1);
+        return;
+      }
+
+      // 会話中の「つぎへ」
       if (G.paused && (isAction || e.key === "Enter")) {
         e.preventDefault();
         if (!G.keys["_sword"]) Dialogue.advance();
         G.keys["_sword"] = true;
         return;
       }
-      // 剣：J か スペース
+
+      // 武器切り替え（Kキー / Qキー）
+      if (!G.paused && (e.key === "k" || e.key === "K" || e.key === "q" || e.key === "Q")) {
+        e.preventDefault();
+        swapWeapon();
+        return;
+      }
+
+      // 武器使用（けん / ブーメラン）：J または スペース
       if (isAction) {
         e.preventDefault();
-        if (!G.keys["_sword"]) swingSword(); // おしっぱなしでは 連打しない
+        if (!G.keys["_sword"]) useWeapon(); // おしっぱなしでは 連打しない
         G.keys["_sword"] = true;
         return;
       }
@@ -3873,6 +4361,16 @@
       });
     }
 
+    // 武器切り替えボタン（画面）
+    const swapBtn = document.getElementById("btn-weapon-swap");
+    if (swapBtn) {
+      swapBtn.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        swapWeapon();
+      });
+    }
+
     // おたすけボタン（こまった とき。ヒントが 早く 出て ハートが ふえる）
     const help = document.getElementById("btn-help");
     if (help) {
@@ -3891,14 +4389,14 @@
       });
     }
 
-    // 剣ボタン（画面）
+    // 武器ボタン（画面：けん / ブーメラン）
     const sb = document.getElementById("btn-sword");
     if (sb) {
       sb.addEventListener("pointerdown", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         sb.classList.add("pressed");
-        swingSword();
+        useWeapon();
       });
       const off = () => sb.classList.remove("pressed");
       sb.addEventListener("pointerup", off);
@@ -4035,6 +4533,11 @@
         G.keys[key] = down;
       },
       swing: () => swingSword(),
+      throwBoomerang: () => throwBoomerang(),
+      swapWeapon: () => swapWeapon(),
+      useWeapon: () => useWeapon(),
+      addPartner: (cfg) => addPartner(cfg),
+      dialogue: Dialogue,
       face: (x, y) => {
         const d = Math.hypot(x, y) || 1;
         G.player.dirX = x / d;

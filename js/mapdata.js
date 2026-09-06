@@ -209,6 +209,7 @@
       triggers: (data.triggers || []).map((t) => ({ ...t })),
       gates: (data.gates || []).map((g) => ({ ...g })),
       boulders: (data.boulders || []).map((b) => ({ ...b })),
+      crystalSwitches: (data.crystalSwitches || []).map((s) => ({ ...s })),
       exit: data.exit ? { ...data.exit } : null,
       hints: (data.hints || []).map((h) => ({ ...h })),
       intro: data.intro ? JSON.parse(JSON.stringify(data.intro)) : null,
