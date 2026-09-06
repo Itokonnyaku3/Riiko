@@ -4,7 +4,7 @@ window.MAPS = window.MAPS || {};
 window.MAPS["stage2"] = /*MAPDATA*/{
  "name": "stage2",
  "title": "ささやきの谷",
- "updatedAt": 2000000000000,
+ "updatedAt": 2500000000000,
  "world": {
   "width": 2200,
   "height": 3600,

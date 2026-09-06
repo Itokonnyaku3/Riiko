@@ -219,12 +219,33 @@
   function getEditedMap(stageId) {
     if (!stageId || typeof localStorage === "undefined") return null;
     const target = String(stageId).toLowerCase();
+    const fileMap = (typeof window !== "undefined" && window.MAPS && window.MAPS[target]) || null;
+    const fileTime = (fileMap && fileMap.updatedAt) || 0;
+
+    function isValidCustomMap(d) {
+      if (!d || !d.world) return false;
+      // ファイル側のマップが新しく更新された場合（d.updatedAt <= fileTime）、古いエディタキャッシュは無効
+      if (fileTime && (d.updatedAt || 0) <= fileTime) return false;
+      // stage2で旧マップ（高さ1800、川がない）の残骸なら無効化
+      if (target === "stage2") {
+        if ((d.world.height || 0) < 3000 || !d.areas || !d.areas.some((a) => a.river)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     try {
       // 1. 特定面のキー (riiko.map.stage1 など)
       const specific = localStorage.getItem("riiko.map." + target);
       if (specific) {
         const d = JSON.parse(specific);
-        if (d && d.world) return d;
+        if (isValidCustomMap(d)) {
+          return d;
+        } else {
+          // 古い・無効なキャッシュは自動削除
+          localStorage.removeItem("riiko.map." + target);
+        }
       }
       // 2. 現在エディタで編集中のマップ (riiko.mapeditor.v1)
       const current = localStorage.getItem("riiko.mapeditor.v1");
@@ -233,7 +254,11 @@
         if (d && d.world) {
           const dName = String(d.name || "").toLowerCase();
           if (dName === target || (!dName && target === "stage1")) {
-            return d;
+            if (isValidCustomMap(d)) {
+              return d;
+            } else {
+              localStorage.removeItem("riiko.mapeditor.v1");
+            }
           }
         }
       }

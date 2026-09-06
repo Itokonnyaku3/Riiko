@@ -1953,6 +1953,12 @@
       G.player.x = opts.respawn.x;
       G.player.y = opts.respawn.y;
       G.respawn = { x: opts.respawn.x, y: opts.respawn.y };
+      // 2面が新しくなったのに旧マップの座標（y < 2400 かつベル未救出）で復帰しようとした場合は谷の入り口に戻す
+      if (id === "stage2" && G.player.y < 2400 && !G.flags.pikaJoined) {
+        G.player.x = (sc.player && sc.player.x) || 1100;
+        G.player.y = (sc.player && sc.player.y) || 3420;
+        G.respawn = { x: G.player.x, y: G.player.y };
+      }
       // ★復帰地点が障害物にめり込んでいる場合は、安全な初期位置へ戻す（フェイルセーフ）
       if (!isSafePosition(G.player.x, G.player.y, PLAYER_R)) {
         const safe = findSafeSpawn(sc);
