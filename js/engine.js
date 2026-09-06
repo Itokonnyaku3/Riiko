@@ -2544,16 +2544,16 @@
     const isStoneThrower = e.bulletSprite === "🪨" || (e.id && e.id.includes("thrower"));
     if (isStoneThrower && d < range && e.barrageCd <= 0) {
       e.chargingBarrage = true;
-      e.chargeT = 1.5; // 1.5秒の溜め動作
-      addFloater(e.x, e.y - 35, "⚠️ 力をためている…！", "#ffaa00", 1.2);
+      e.chargeT = 4.0; // 4秒の溜め動作（プレイヤーが爆弾岩に隠れる十分な猶予）
+      addFloater(e.x, e.y - 35, "⚠️ 力をためている…！", "#ffaa00", 2.0);
       Sfx.play("hurt");
 
       // ベルが「爆弾岩の陰に隠れて！」と叫ぶ！
       if (G.fairy) {
         G.fairy.say = "爆弾岩の陰に隠れて！";
-        G.fairy.sayT = 3.0;
+        G.fairy.sayT = 4.2;
       }
-      addFloater(p.x, p.y - 45, "ベル「爆弾岩の陰に隠れて！」", "#5affaa", 2.2);
+      addFloater(p.x, p.y - 45, "ベル「爆弾岩の陰に隠れて！」", "#5affaa", 3.0);
       return;
     }
 
@@ -3002,11 +3002,13 @@
       ctx.save();
       ctx.translate(px, py);
       ctx.rotate(rc.penguinAngle);
-      ctx.fillStyle = "#000";
-      ctx.font = "48px system-ui, 'Segoe UI Emoji', sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(rc.penguin.sprite || "🐧", 0, 0);
+      if (!drawWalker(rc.penguin, 0, 0, 0)) {
+        ctx.fillStyle = "#000";
+        ctx.font = "48px system-ui, 'Segoe UI Emoji', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(rc.penguin.sprite || "🐧", 0, 0);
+      }
       ctx.restore();
 
       // あわわの汗しずくエフェクト

@@ -115,6 +115,12 @@ window.WALKS = {
     left: ["assets/maou/left1.png", "assets/maou/left2.png"],
     right: ["assets/maou/right1.png", "assets/maou/right2.png"],
   },
+  penta: {
+    down: ["assets/penta/down1.png", "assets/penta/down2.png"],
+    up: ["assets/penta/up1.png", "assets/penta/up2.png"],
+    left: ["assets/penta/left1.png", "assets/penta/left2.png"],
+    right: ["assets/penta/right1.png", "assets/penta/right2.png"],
+  },
 };
 
 // 面の 入れもの（js/stages/◯◯.js が ここに 自分を 入れます）

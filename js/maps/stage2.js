@@ -275,6 +275,9 @@ window.MAPS["stage2"] = /*MAPDATA*/{
    "x": 1100,
    "y": 2550,
    "sprite": "🐧",
+   "walkKey": "penta",
+   "walk": true,
+   "size": 76,
    "name": "ペンギンの ペンタ",
    "r": 48,
    "variants": [
