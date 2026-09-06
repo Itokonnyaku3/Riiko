@@ -72,10 +72,31 @@
     const a = def(sprite);
     const im = a && image(a.id);
     if (a && im) {
-      const k = a.r ? r / a.r : (r * 2) / a.size; // 大きさの ばいりつ
+      const k = (r > 0) ? (a.r ? r / a.r : (r * 2) / a.size) : 1; // 大きさの ばいりつ
       const h = a.size * k;
       const w = (h * a.w) / a.h;
-      ctx.drawImage(im, x - w / 2, y + r * 0.55 - h, w, h);
+      const footY = (r > 0) ? (y + r * 0.55) : (y + (a.r || 0) * 0.55);
+      ctx.drawImage(im, x - w / 2, footY - h, w, h);
+
+      // 滝・滝壺の動的水しぶき（白泡パーティクル）
+      if (a.id === "waterfall" || a.id === "waterfall-basin") {
+        const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) * 0.003;
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+        const basinY = footY - 10;
+        const leftX = x - w * 0.38;
+        const rightX = x + w * 0.38;
+        for (let i = 0; i < 9; i++) {
+          const px = leftX + (i / 8) * (rightX - leftX) + Math.sin(now * 3.5 + i * 1.7) * 4;
+          const py = basinY + Math.cos(now * 4 + i * 2.1) * 3 - Math.abs(Math.sin(now * 5.2 + i * 1.3)) * 6;
+          const pr = 1.6 + Math.sin(now * 2.5 + i) * 0.7;
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(0.8, pr), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
       return true;
     }
     drawEmoji(ctx, a ? a.em : sprite, x, y, r * 1.7);

@@ -302,9 +302,17 @@ def build():
                 "w": img.width, "h": img.height,
                 "r": r, "size": size, "em": em,
             })
-    # 手動生成された追加パーツ（滝・空・雲）
+    # 手動生成された追加パーツ（滝・崖・空・雲・樹冠）
     EXTRA_PARTS = [
-        {"id": "waterfall", "label": "たき", "group": "land", "w": 174, "h": 180, "r": 42, "size": 130, "em": "🌊"},
+        {"id": "tree-canopy", "label": "きの はっぱ", "group": "tree", "w": 150, "h": 135, "r": 0, "size": 70, "em": "🌿"},
+        {"id": "tree-canopy2", "label": "きの はっぱ2", "group": "tree", "w": 146, "h": 142, "r": 0, "size": 70, "em": "🌿"},
+        {"id": "waterfall", "label": "たき", "group": "land", "w": 180, "h": 96, "r": 42, "size": 96, "em": "🌊"},
+        {"id": "waterfall-crest", "label": "たきの おちぐち", "group": "land", "w": 180, "h": 50, "r": 24, "size": 50, "em": "🌊"},
+        {"id": "waterfall-cascade", "label": "たきの ながれ", "group": "land", "w": 180, "h": 70, "r": 0, "size": 70, "em": "🌊"},
+        {"id": "waterfall-basin", "label": "たきつぼ", "group": "land", "w": 180, "h": 50, "r": 24, "size": 50, "em": "🌊"},
+        {"id": "cliff-step-l", "label": "だんさがけ ひだり", "group": "land", "w": 140, "h": 110, "r": 38, "size": 110, "em": "🧱"},
+        {"id": "cliff-step-r", "label": "だんさがけ みぎ", "group": "land", "w": 130, "h": 110, "r": 38, "size": 110, "em": "🧱"},
+        {"id": "cliff-step-mid", "label": "だんさがけ まんなか", "group": "land", "w": 160, "h": 110, "r": 38, "size": 110, "em": "🧱"},
         {"id": "sky-clouds", "label": "そらと くも", "group": "land", "w": 328, "h": 200, "r": 0, "size": 200, "em": "☁️"},
         {"id": "sky", "label": "そら", "group": "land", "w": 328, "h": 200, "r": 0, "size": 200, "em": "🌌"},
         {"id": "cloud-big", "label": "おおきな くも", "group": "land", "w": 231, "h": 98, "r": 0, "size": 100, "em": "☁️"},

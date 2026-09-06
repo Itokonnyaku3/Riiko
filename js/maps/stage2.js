@@ -108,18 +108,20 @@ window.MAPS["stage2"] = /*MAPDATA*/{
  ],
  "objects": [
   // ---- 滝1（下流の滝・ガケ：川を登れないように完全封鎖）----
-  { "id": "wf1_l2", "x": 920, "y": 3010, "r": 42, "sprite": "cliff" },
-  { "id": "wf1_l",  "x": 1000, "y": 3000, "r": 42, "sprite": "cliff-wall" },
+  { "id": "wf1_l2", "x": 920, "y": 3000, "r": 42, "sprite": "cliff" },
+  { "id": "wf1_l",  "x": 1010, "y": 2990, "r": 42, "sprite": "cliff-step-l" },
   { "id": "wf1",    "x": 1100, "y": 2990, "r": 44, "sprite": "waterfall" },
-  { "id": "wf1_r",  "x": 1200, "y": 3000, "r": 42, "sprite": "cliff-wall" },
-  { "id": "wf1_r2", "x": 1280, "y": 3010, "r": 42, "sprite": "cliff" },
+  { "id": "wf1_basin", "x": 1100, "y": 3020, "r": 0, "sprite": "waterfall-basin" },
+  { "id": "wf1_r",  "x": 1190, "y": 2990, "r": 42, "sprite": "cliff-step-r" },
+  { "id": "wf1_r2", "x": 1280, "y": 3000, "r": 42, "sprite": "cliff" },
 
   // ---- 滝2（中流の滝・ガケ：橋の北で川を登れないように完全封鎖）----
-  { "id": "wf2_l2", "x": 920, "y": 2180, "r": 42, "sprite": "cliff" },
-  { "id": "wf2_l",  "x": 1000, "y": 2170, "r": 42, "sprite": "cliff-wall" },
+  { "id": "wf2_l2", "x": 920, "y": 2170, "r": 42, "sprite": "cliff" },
+  { "id": "wf2_l",  "x": 1010, "y": 2160, "r": 42, "sprite": "cliff-step-l" },
   { "id": "wf2",    "x": 1100, "y": 2160, "r": 44, "sprite": "waterfall" },
-  { "id": "wf2_r",  "x": 1200, "y": 2170, "r": 42, "sprite": "cliff-wall" },
-  { "id": "wf2_r2", "x": 1280, "y": 2180, "r": 42, "sprite": "cliff" },
+  { "id": "wf2_basin", "x": 1100, "y": 2190, "r": 0, "sprite": "waterfall-basin" },
+  { "id": "wf2_r",  "x": 1190, "y": 2160, "r": 42, "sprite": "cliff-step-r" },
+  { "id": "wf2_r2", "x": 1280, "y": 2170, "r": 42, "sprite": "cliff" },
 
   // ---- 川にかかる「はし（橋）」----
   { "id": "bridge1", "x": 1100, "y": 2400, "r": 0, "sprite": "bridge" },
