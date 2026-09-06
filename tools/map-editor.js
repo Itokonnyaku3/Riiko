@@ -127,6 +127,7 @@
     d.checkpoints = d.checkpoints || [];
     d.triggers = d.triggers || [];
     d.gates = d.gates || [];
+    d.boulders = d.boulders || [];
     d.exit = d.exit || null;
     d.hints = d.hints || [];
     d.intro = d.intro || null;
@@ -456,6 +457,18 @@
       ctx.arc(mk.x, mk.y, 22, 0, Math.PI * 2);
       ctx.fill();
       sprite(def.sprite, mk.x, mk.y, 32);
+    }
+
+    // 押せる岩（爆弾岩）
+    if (Array.isArray(d.boulders)) {
+      for (const b of d.boulders) {
+        if (!on(b, 50)) continue;
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.beginPath();
+        ctx.ellipse(b.x, b.y + (b.r || 28) * 0.5, b.r || 28, (b.r || 28) * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        sprite(b.sprite || "💣", b.x, b.y, b.size || 50);
+      }
     }
 
     // せかいの ふち

@@ -30,7 +30,7 @@
     "🌳": "tree", "🌲": "fir", "🪨": "rocks", "🪵": "log", "🧱": "cliff-wall",
     "🚧": "fence", "🏠": "house", "🛖": "house-straw", "🏰": "castle-far",
     "⛰️": "mountain", "🛢️": "barrel", "📦": "crate", "🗿": "rock-d", "⛲": "well",
-    "🌿": "grass-tuft", "☘️": "grass-small",
+    "🌿": "grass-tuft", "☘️": "grass-small", "🌊": "waterfall",
   };
 
   function def(sprite) {

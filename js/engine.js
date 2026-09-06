@@ -688,6 +688,9 @@
 
   // カットシーン中の カメラの 目あて（なめらかに 近づく）
   function cutCamTarget() {
+    if (G.riverCutscene && G.riverCutscene.active && G.riverCutscene.camTarget) {
+      return G.riverCutscene.camTarget;
+    }
     const c = G.cut;
     if (!c || !c.look) return null;
     return c.look;
@@ -1705,6 +1708,12 @@
       updateCamera();
       return;
     }
+    if (G.riverCutscene && G.riverCutscene.active) {
+      updateRiverCutscene(dt);
+      updateCamera();
+      updateFloaters(dt);
+      return;
+    }
     if (G.paused) return;
     // ★ヒットストップ：当たった しゅんかん だけ 世界を 止める
     if (G.hitstop > 0) {
@@ -2482,9 +2491,74 @@
   }
 
   function updateShooter(e, dt, p) {
+    if (e.barrageCd == null) e.barrageCd = 3.5; // 初回の大技までの時間
     e.shootCd -= dt;
+    e.barrageCd -= dt;
+
     const d = dist(e.x, e.y, p.x, p.y);
-    if (d < (e.sight || 320) && e.shootCd <= 0) {
+    const range = e.shootRange || e.sight || 360;
+
+    // 大技（溜め猛烈投石）の予備動作中
+    if (e.chargingBarrage) {
+      e.chargeT -= dt;
+      e.flashT = 0.1; // 体が赤く点滅
+      if (Math.random() < 0.25) {
+        addFloater(e.x + (Math.random() - 0.5) * 16, e.y - 28, "💢", "#ff4444", 0.3);
+      }
+      if (e.chargeT <= 0) {
+        // 溜め完了！よけられないくらいたくさんの石を一斉発射！
+        e.chargingBarrage = false;
+        e.barrageCd = 7.0 + Math.random() * 2.0;
+        e.shootCd = 2.2;
+        addFloater(e.x, e.y - 35, "ウキーーーッ！！💥", "#ff2200", 1.0);
+        Sfx.play("dash");
+
+        const dx = p.x - e.x,
+          dy = p.y - e.y;
+        const baseAngle = Math.atan2(dy, dx);
+        const sp = (e.bulletSpeed || 150) * 1.15;
+
+        // 扇状に7発の石を一斉発射
+        const count = 7;
+        const spread = 0.85; // 扇状に広がる
+        for (let i = 0; i < count; i++) {
+          const a = baseAngle - spread / 2 + (spread / (count - 1)) * i;
+          G.bullets.push({
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(a) * sp,
+            vy: Math.sin(a) * sp,
+            dmg: e.bulletDamage || 1,
+            kind: "normal",
+            sprite: e.bulletSprite || "🪨",
+            color: "#ff8800",
+            r: e.bulletR || 8,
+            life: 3.5,
+          });
+        }
+      }
+      return;
+    }
+
+    // 投石敵（🐒）が射程内にリイコを捉え、クールダウン完了で溜め開始！
+    const isStoneThrower = e.bulletSprite === "🪨" || (e.id && e.id.includes("thrower"));
+    if (isStoneThrower && d < range && e.barrageCd <= 0) {
+      e.chargingBarrage = true;
+      e.chargeT = 1.5; // 1.5秒の溜め動作
+      addFloater(e.x, e.y - 35, "⚠️ 力をためている…！", "#ffaa00", 1.2);
+      Sfx.play("hurt");
+
+      // ベルが「爆弾岩の陰に隠れて！」と叫ぶ！
+      if (G.fairy) {
+        G.fairy.say = "爆弾岩の陰に隠れて！";
+        G.fairy.sayT = 3.0;
+      }
+      addFloater(p.x, p.y - 45, "ベル「爆弾岩の陰に隠れて！」", "#5affaa", 2.2);
+      return;
+    }
+
+    // 通常の投石攻撃
+    if (d < range && e.shootCd <= 0) {
       e.shootCd = e.shootInterval || 1.8;
       const dx = p.x - e.x,
         dy = p.y - e.y;
@@ -2561,8 +2635,8 @@
         if (dist(b.x, b.y, bld.x, bld.y) < (bld.r || 28) + (b.r || 7)) {
           b.life = 0;
           boulderHit = true;
-          addFloater(bld.x, bld.y - 18, "ガード！🛡️", "#ffe36b", 0.5);
           Sfx.play("hit");
+          addFloater(bld.x + (Math.random() - 0.5) * 16, bld.y - 12, "💥", "#ffcc00", 0.25);
           break;
         }
       }
@@ -2600,6 +2674,27 @@
 
     for (const b of G.boulders) {
       if (!b.active) continue;
+
+      // カウントダウン処理（５，４，３，２，１）
+      if (b.countdown != null) {
+        b.countdown -= dt;
+        const curInt = Math.ceil(b.countdown);
+        if (curInt > 0 && curInt !== b.lastCountInt) {
+          b.lastCountInt = curInt;
+          if (G.fairy) {
+            G.fairy.say = curInt + "！";
+            G.fairy.sayT = 0.95;
+          }
+          addFloater(b.x, b.y - 45, curInt + "！", "#ff3333", 0.9);
+          Sfx.play("step");
+        }
+        if (b.countdown <= 0) {
+          b.countdown = null;
+          executeDamExplosion(b);
+          break;
+        }
+      }
+
       const br = b.r || 28;
       const minDist = br + PLAYER_R;
       const dx = b.x - fx;
@@ -2617,7 +2712,7 @@
         const isMoving = p.moving || G.keys["ArrowUp"] || G.keys["ArrowDown"] || G.keys["ArrowLeft"] || G.keys["ArrowRight"] ||
           (G.stick && (Math.abs(G.stick.x) > 0.1 || Math.abs(G.stick.y) > 0.1));
 
-        if (pushAlignment > 0.2 && isMoving) {
+        if (pushAlignment > 0.2 && isMoving && b.countdown == null) {
           const pushSpeed = p.speed * 0.65;
           const pushStep = pushSpeed * dt;
           const nextBx = b.x + nx * pushStep;
@@ -2662,66 +2757,265 @@
     }
   }
 
-  // せき止め巨石（ダム）への到達検知と爆破
-  let damExploding = false;
+  // せき止め巨石（ダム）への到達検知
+  let damCountdownTriggered = false;
   function checkDamDestruction(bld) {
-    if (damExploding || G.flags["riverFlowing"]) return;
+    if (damCountdownTriggered || bld.countdown != null || G.flags["riverFlowing"]) return;
     const damList = (G.obstacles || []).filter((o) => o.dam);
     if (!damList.length) return;
 
     // ダムのいずれかの巨石に接触
-    const nearDam = damList.some((d) => Math.hypot(bld.x - d.x, bld.y - d.y) < (bld.r || 28) + (d.r || 30) + 14);
+    const nearDam = damList.some((d) => Math.hypot(bld.x - d.x, bld.y - d.y) < (bld.r || 28) + (d.r || 30) + 16);
     if (nearDam) {
-      triggerDamExplosion(bld, damList);
+      damCountdownTriggered = true;
+      bld.countdown = 5.0;
+      bld.lastCountInt = 5;
+
+      // ① ベルが「爆発させるから遠くに逃げて！」と言う
+      if (G.fairy) {
+        G.fairy.say = "爆発させるから遠くに逃げて！";
+        G.fairy.sayT = 3.5;
+      }
+      addFloater(bld.x, bld.y - 50, "ベル「爆発させるから遠くに逃げて！」💥", "#ff3333", 3.0);
+      Sfx.play("hurt");
     }
   }
 
-  function triggerDamExplosion(bld, damList) {
-    damExploding = true;
-    bld.active = false;
+  // ② 爆発処理（爆弾岩、次いで石が爆発。触れると5ダメージ）
+  function executeDamExplosion(bld) {
+    G.shake = 45; // 画面大揺れ
+    Sfx.play("defeat");
 
-    // ベルのセリフ演出
-    const bellName = (G.fairy && G.fairy.name) || "ベル";
-    Dialogue.open(bellName, [
-      "ちょっと！ リイコ、はなれなさい！",
-      "アタシの 魔法で、あの 爆弾岩に 火をつけてあげるわ！",
-      "いくわよ…… えーーいっ！！✨"
-    ]);
+    // 爆弾岩が大爆発！
+    addFloater(bld.x, bld.y - 30, "ドッカーーーーーン！！💥💥💥", "#ff2200", 2.2);
+    addFloater(bld.x, bld.y, "🔥", "#ff8800", 1.8);
 
-    setTimeout(() => {
-      G.shake = 35; // 画面大揺れ
-      Sfx.play("defeat");
-      addFloater(bld.x, bld.y - 40, "ドッカーーーーーン！！💥💥💥", "#ff4444", 2.0);
-      addFloater(bld.x, bld.y, "🔥", "#ff8800", 1.5);
-
-      // せき止め巨石を障害物から全撤去
-      G.obstacles = G.obstacles.filter((o) => !o.dam);
-      // 爆弾岩も消滅
-      G.boulders = G.boulders.filter((b) => b !== bld);
-
-      // 川の復活！
-      G.flags["riverFlowing"] = true;
-      if (G.world && G.world.areas) {
-        G.world.areas.forEach((a) => {
-          if (a.river) {
-            a.kind = "water";
-            a.color = "#4da6ff";
-          }
-        });
-      }
-      invalidateAreaChunks();
-      saveGame();
-
+    // 次いでせき止め石群（ダム）が連鎖爆発
+    const dams = (G.obstacles || []).filter((o) => o.dam);
+    dams.forEach((d, idx) => {
       setTimeout(() => {
-        addFloater(G.player.x, G.player.y - 60, "ザーーーッ！ 水が 流れてきた！🌊", "#4da6ff", 2.2);
+        addFloater(d.x, d.y - 20, "💥", "#ffaa00", 1.2);
+        Sfx.play("hit");
+      }, idx * 60);
+    });
+
+    // 爆風範囲内に主人公がいると「5ダメージ」！
+    const p = G.player;
+    if (p) {
+      const distToBlast = Math.hypot(p.x - bld.x, p.y - bld.y);
+      if (distToBlast < 160) {
+        p.invT = 0; // 爆発直撃時は無敵を貫通
+        damagePlayer(5);
+        addFloater(p.x, p.y - 45, "爆風に巻き込まれた！！💥 -5", "#ff0000", 2.5);
+      }
+    }
+
+    // せき止め巨石を障害物から全撤去
+    G.obstacles = G.obstacles.filter((o) => !o.dam);
+    // 爆弾岩も消滅
+    G.boulders = G.boulders.filter((b) => b !== bld);
+
+    // 川の復活！
+    G.flags["riverFlowing"] = true;
+    if (G.world && G.world.areas) {
+      G.world.areas.forEach((a) => {
+        if (a.river) {
+          a.kind = "water";
+          a.color = "#4da6ff";
+        }
+      });
+    }
+    invalidateAreaChunks();
+    saveGame();
+
+    // 主人公がやられていなければ、③ 水流カメラ追跡＆ペンギン流されカットシーンへ突入！
+    if (G.downT <= 0) {
+      setTimeout(() => {
+        startRiverCutscene(bld.x, bld.y);
+      }, 700);
+    }
+  }
+
+  // ---- ③ 水流カメラ追跡＆ペンギン流されカットシーン ----
+  function startRiverCutscene(startX, startY) {
+    const penguin = (G.npcs || []).find((n) => n.id === "s2_penguin");
+    const penguinY = penguin ? penguin.y : 2550;
+    const penguinX = penguin ? penguin.x : 1100;
+
+    const waypoints = [
+      { x: startX || 1280, y: startY || 1350 },
+      { x: 1100, y: 1750 },
+      { x: 1100, y: 2160 }, // 滝2
+      { x: 1100, y: 2400 }, // 橋
+      { x: penguinX, y: penguinY }, // ペンギンのオアシス
+    ];
+
+    G.riverCutscene = {
+      active: true,
+      waypoints: waypoints,
+      wpIdx: 0,
+      t: 0,
+      camX: waypoints[0].x,
+      camY: waypoints[0].y,
+      camTarget: { x: waypoints[0].x, y: waypoints[0].y },
+      splashes: [],
+      penguin: penguin,
+      penguinOrigY: penguinY,
+      penguinOrigX: penguinX,
+      penguinAngle: 0,
+      phase: "flow", // "flow" | "penguin" | "return"
+    };
+
+    addFloater(waypoints[0].x, waypoints[0].y - 40, "ザーーーッ！！🌊🌊🌊", "#4da6ff", 2.5);
+    Sfx.play("dash");
+  }
+
+  function updateRiverCutscene(dt) {
+    const rc = G.riverCutscene;
+    if (!rc || !rc.active) return;
+    rc.t += dt;
+
+    // 水しぶき・水泡パーティクルの生成
+    if (Math.random() < 0.85) {
+      rc.splashes.push({
+        x: rc.camX + (Math.random() - 0.5) * 120,
+        y: rc.camY + (Math.random() - 0.5) * 60,
+        vx: (Math.random() - 0.5) * 60,
+        vy: 40 + Math.random() * 80,
+        r: 6 + Math.random() * 12,
+        life: 0.6 + Math.random() * 0.4,
+        maxLife: 1.0,
+      });
+    }
+
+    for (const sp of rc.splashes) {
+      sp.x += sp.vx * dt;
+      sp.y += sp.vy * dt;
+      sp.life -= dt;
+    }
+    rc.splashes = rc.splashes.filter((sp) => sp.life > 0);
+
+    if (rc.phase === "flow") {
+      const curWp = rc.waypoints[rc.wpIdx];
+      const nextWp = rc.waypoints[rc.wpIdx + 1];
+
+      if (nextWp) {
+        const dx = nextWp.x - rc.camX;
+        const dy = nextWp.y - rc.camY;
+        const d = Math.hypot(dx, dy);
+        const flowSpeed = 460;
+        const step = Math.min(d, flowSpeed * dt);
+        if (d > 0.1) {
+          rc.camX += (dx / d) * step;
+          rc.camY += (dy / d) * step;
+        }
+        if (d < 18) {
+          rc.wpIdx++;
+          if (rc.wpIdx === 2) {
+            addFloater(rc.camX, rc.camY - 30, "ドザーーッ！滝を 落下！🌊", "#38b6ff", 1.8);
+            Sfx.play("dash");
+          } else if (rc.wpIdx === 3) {
+            addFloater(rc.camX, rc.camY - 20, "橋の 下を つうか！🌉", "#5cdb95", 1.5);
+          }
+        }
+      } else {
+        rc.phase = "penguin";
+        rc.t = 0;
+        if (rc.penguin) {
+          addFloater(rc.penguin.x, rc.penguin.y - 50, "ペンギン「わわわーっ！ 流される〜〜！💦💦」", "#38b6ff", 2.5);
+          Sfx.play("defeat");
+        }
+      }
+      rc.camTarget.x = rc.camX;
+      rc.camTarget.y = rc.camY;
+      return;
+    }
+
+    if (rc.phase === "penguin") {
+      if (rc.penguin) {
+        rc.penguinAngle += dt * 9.0;
+        rc.penguin.y += 85 * dt;
+        rc.penguin.x += Math.sin(rc.t * 6) * 35 * dt;
+        rc.camTarget.x = rc.penguin.x;
+        rc.camTarget.y = rc.penguin.y;
+      }
+      if (rc.t > 2.2) {
+        rc.phase = "return";
+        rc.t = 0;
+        if (rc.penguin) {
+          rc.penguinAngle = 0;
+          addFloater(rc.penguin.x, rc.penguin.y - 45, "ペンギン「ぷはぁっ！…冷たい水だーーっ！！🌊✨」", "#ffe36b", 2.5);
+          Sfx.play("step");
+        }
+        if (G.fairy) {
+          G.fairy.say = "やったわ！ 川に水が戻ったわね！";
+          G.fairy.sayT = 3.0;
+        }
+      }
+      return;
+    }
+
+    if (rc.phase === "return") {
+      const p = G.player;
+      const dx = p.x - rc.camTarget.x;
+      const dy = p.y - rc.camTarget.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 20 && rc.t < 2.0) {
+        rc.camTarget.x += dx * 0.08;
+        rc.camTarget.y += dy * 0.08;
+      } else {
+        rc.active = false;
+        G.riverCutscene = null;
         Dialogue.open("ベル", [
           "やったわ！ 見なさいよ、この 威力！",
           "これで 川に 水が 戻ったわね！",
-          "さあ、あの ペンギンの ところへ もどって みましょう！"
+          "さあ、あの ペンギンの ところへ 行って 話を聞いてみましょ！"
         ]);
-        damExploding = false;
-      }, 1200);
-    }, 1500);
+      }
+    }
+  }
+
+  // 水流カットシーンの描画（水しぶき・波紋・ペンギンの流され回転）
+  function drawRiverCutscene(ox, oy) {
+    const rc = G.riverCutscene;
+    if (!rc || !rc.active) return;
+
+    // 白い水しぶきと波紋
+    for (const sp of rc.splashes) {
+      const alpha = Math.max(0, Math.min(1, sp.life / sp.maxLife));
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.85})`;
+      ctx.beginPath();
+      ctx.arc(sp.x + ox, sp.y + oy, sp.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = `rgba(130, 215, 255, ${alpha * 0.65})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(sp.x + ox, sp.y + oy, sp.r * 1.4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // ペンギンが回転して流される描画（ペンギン広場到達時）
+    if (rc.phase === "penguin" && rc.penguin) {
+      const px = rc.penguin.x + ox;
+      const py = rc.penguin.y + oy;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(rc.penguinAngle);
+      ctx.fillStyle = "#000";
+      ctx.font = "48px system-ui, 'Segoe UI Emoji', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(rc.penguin.sprite || "🐧", 0, 0);
+      ctx.restore();
+
+      // あわわの汗しずくエフェクト
+      if (Math.random() < 0.6) {
+        ctx.fillStyle = "#4da6ff";
+        ctx.font = "24px system-ui, sans-serif";
+        ctx.fillText("💦", px + (Math.random() - 0.5) * 36, py - 30 + (Math.random() - 0.5) * 16);
+      }
+    }
   }
 
   function updateFloaters(dt) {
@@ -2836,17 +3130,50 @@
       renderables.push({
         baseY: b.y + (b.r ? b.r * 0.55 : 14),
         draw: () => {
+          ctx.globalAlpha = 1;
+          // カウントダウン中の小刻みな振動
+          const shakeX = b.countdown != null ? (Math.random() - 0.5) * 6 : 0;
+          const shakeY = b.countdown != null ? (Math.random() - 0.5) * 6 : 0;
+          const bx = b.x + ox + shakeX;
+          const by = b.y + oy + shakeY;
+
           // 接地影
-          ctx.fillStyle = "rgba(0,0,0,0.18)";
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
           ctx.beginPath();
-          ctx.ellipse(b.x + ox, b.y + oy + (b.r || 28) * 0.5, b.r || 28, (b.r || 28) * 0.4, 0, 0, Math.PI * 2);
+          ctx.ellipse(bx, by + (b.r || 28) * 0.5, (b.r || 28) * 1.1, (b.r || 28) * 0.45, 0, 0, Math.PI * 2);
           ctx.fill();
-          // 爆弾岩（💣）
-          drawSprite(b.sprite || "💣", b.x + ox, b.y + oy, b.size || 58);
-          // 導火線の火花エフェクト
-          if (Math.random() < 0.4) {
-            ctx.fillStyle = "#ffcc00";
-            ctx.fillRect(b.x + ox + 6 + (Math.random() - 0.5) * 8, b.y + oy - 20, 2.5, 2.5);
+
+          // 爆弾岩（💣）不透明描画
+          ctx.fillStyle = "#000";
+          ctx.globalAlpha = 1;
+          drawSprite(b.sprite || "💣", bx, by, b.size || 58);
+
+          // 導火線の火花エフェクト（カウントダウン中は激しく火花が散る）
+          const sparkChance = b.countdown != null ? 0.95 : 0.4;
+          if (Math.random() < sparkChance) {
+            const sparkColors = ["#ffcc00", "#ff6600", "#ff3300", "#ffffff"];
+            const spCount = b.countdown != null ? 5 : 1;
+            for (let s = 0; s < spCount; s++) {
+              ctx.fillStyle = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+              ctx.fillRect(
+                bx + 6 + (Math.random() - 0.5) * (b.countdown != null ? 18 : 8),
+                by - 20 + (Math.random() - 0.5) * (b.countdown != null ? 16 : 4),
+                b.countdown != null ? 4 : 2.5,
+                b.countdown != null ? 4 : 2.5
+              );
+            }
+          }
+
+          // カウントダウン中の巨大数字表示
+          if (b.countdown != null && b.countdown > 0) {
+            const num = Math.ceil(b.countdown);
+            ctx.fillStyle = "#ff2222";
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 4;
+            ctx.font = "bold 38px system-ui, sans-serif";
+            ctx.textAlign = "center";
+            ctx.strokeText(String(num), bx, by - 42);
+            ctx.fillText(String(num), bx, by - 42);
           }
         },
       });
@@ -3042,6 +3369,7 @@
 
     drawFairy(ox, oy); // 仲間1 ピカ
     drawGuide(ox, oy); // ヒント3の 光る しるし
+    drawRiverCutscene(ox, oy); // 水流・ペンギン流されカットシーン演出
 
     for (const f of G.floaters) {
       const maxL = f.maxLife || 0.9;
@@ -3380,6 +3708,8 @@
   }
 
   function drawSprite(sprite, x, y, size) {
+    ctx.fillStyle = "#000";
+    ctx.globalAlpha = 1;
     ctx.font = size + "px system-ui, 'Segoe UI Emoji', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

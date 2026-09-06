@@ -1,4 +1,4 @@
-// 2面「ささやきの谷」の川さかのぼり・ペンギン・爆弾岩押し・ダム爆破イベントのテスト
+// 2面「ささやきの谷」の川さかのぼり・迂回路・滝・ペンギン・爆弾岩押し・大爆発・水流カットシーンのテスト
 const fs = require("fs");
 const path = require("path");
 const ROOT = path.join(__dirname, "..");
@@ -104,48 +104,61 @@ const riverAreas = (st.world.areas || []).filter((a) => a.river);
 ok("川エリアが存在する", riverAreas.length > 0, riverAreas.length + "箇所");
 ok("川が流れる前は川底が砂・土である", riverAreas.some((a) => a.kind === "sand" || a.kind === "dirt"));
 
-// 2. クモの巣（s2n1）でベルを救出
+// 2. 登れない2か所の滝の存在
+const wf1 = (st.obstacles || []).find((o) => o.id === "wf1" || o.sprite === "waterfall");
+const wf2 = (st.obstacles || []).find((o) => o.id === "wf2" || (o.sprite === "waterfall" && o.y < 2500));
+ok("下流に登れない滝1（waterfall）が存在する", !!wf1 && wf1.r > 0);
+ok("中流に登れない滝2（waterfall）が存在する", !!wf2 && wf2.r > 0);
+
+// 3. 右岸迂回路（クモの巣 s2n1）でベルを救出
 const web = st.npcs.find((n) => n.id === "s2n1");
-ok("ベルの囚われたクモの巣がある", !!web);
+ok("右岸迂回路にベルの囚われたクモの巣がある", !!web && web.x > 1500);
 st.player.x = web.x;
 st.player.y = web.y;
 run(5);
 ok("ベルが仲間になる", !!st.fairy && st.flags["pikaJoined"]);
 
-// 3. ペンギン（s2_penguin）との会話
+// 4. 川をまたぐ橋とペンギン（s2_penguin）
 const penguin = st.npcs.find((n) => n.id === "s2_penguin");
-ok("困っているペンギンがいる", !!penguin);
+ok("オアシスに困っているペンギンがいる", !!penguin);
 st.player.x = penguin.x;
 st.player.y = penguin.y;
 run(5);
-const penguinLinesBefore = els["dialogue-text"].textContent || "";
 ok("ペンギンが川の水が流れてこなくて困っていると話す",
   penguin.variants[1].lines.some((l) => l.includes("川の水が ぜんぜん 流れてこない")));
 closeDialogue();
 
-// 4. 爆弾岩（s2_bomb1）の存在と押し操作
-const bomb = (st.boulders || []).find((b) => b.id === "s2_bomb1" || b.sprite === "💣");
-ok("上流に爆弾岩が存在する", !!bomb);
-const initialBombY = bomb.y;
-const initialBombX = bomb.x;
+// 5. 敵の溜め投石時にベルが「爆弾岩の陰に隠れて！」と警告すること
+const thrower = st.enemies.find((e) => e.id === "s2e_thrower1" || e.name.includes("ザル"));
+ok("投石敵（いしなげザル）が存在する", !!thrower);
+if (thrower) {
+  thrower.barrageCd = 0; // すぐに大技を発動可能に
+  st.player.x = thrower.x + 100;
+  st.player.y = thrower.y;
+  run(2);
+  ok("敵の溜め動作時、ベルが『爆弾岩の陰に隠れて！』と警告する",
+    (st.fairy && st.fairy.say.includes("爆弾岩の陰に隠れて")) ||
+    st.floaters.some((f) => f.text.includes("爆弾岩の陰に隠れて")));
+}
 
-// プレイヤーを爆弾岩のすぐ南（後ろ）に配置し、北（上）へ押す
+// 6. 爆弾岩（s2_bomb1）の存在と押し操作
+const bomb = (st.boulders || []).find((b) => b.id === "s2_bomb1" || b.sprite === "💣");
+ok("上流広場の北に爆弾岩が存在する", !!bomb);
+const initialBombY = bomb.y;
+
+// プレイヤーを爆弾岩の後ろ（南側）に配置し、北へ押す
 st.player.x = bomb.x;
-st.player.y = bomb.y + 42; // 後ろ（南側）
+st.player.y = bomb.y + 42;
 st.player.dirX = 0;
-st.player.dirY = -1; // 上を向く
+st.player.dirY = -1;
 st.player.moving = true;
 H.press("ArrowUp", true);
-
-for (let i = 0; i < 30; i++) {
-  H.step(1 / 60);
-}
+for (let i = 0; i < 30; i++) H.step(1 / 60);
 H.press("ArrowUp", false);
-ok("後ろから体当たりすると爆弾岩が前（北）へ押される", bomb.y < initialBombY, "y: " + initialBombY + " → " + bomb.y);
+ok("後ろから体当たりすると爆弾岩が前へ押される", bomb.y < initialBombY, "y: " + initialBombY + " → " + bomb.y);
 
-// 5. 敵の投石（🪨）を爆弾岩がガードすることの検証
-st.player.x = bomb.x - 60; // プレイヤーは岩の横に退避
-st.player.y = bomb.y;
+// 7. 敵の投石が爆弾岩に当たった際「ガード！」テキストが出ないこと
+st.floaters = [];
 st.bullets.push({
   x: bomb.x,
   y: bomb.y + 45,
@@ -155,28 +168,46 @@ st.bullets.push({
   sprite: "🪨",
   life: 3,
 });
-for (let i = 0; i < 15; i++) {
-  H.step(1 / 60);
-}
-ok("敵の投石が爆弾岩に当たるとガードされ弾が消える", st.bullets.length === 0);
-ok("ガード演出（ガード！🛡️）が発生する", st.floaters.some((f) => f.text.includes("ガード")));
+for (let i = 0; i < 15; i++) H.step(1 / 60);
+ok("敵の投石が爆弾岩に当たると消える", st.bullets.length === 0);
+ok("説明テキスト『ガード！』は表示されない（不要になったため削除）",
+  !st.floaters.some((f) => f.text.includes("ガード")));
 
-// 6. 爆弾岩をせき止め巨石（ダム）まで押し進めて爆破
+// 8. 爆弾岩をせき止め巨石（ダム）に接触させるとカウントダウンが始まる
 const damsBefore = (st.obstacles || []).filter((o) => o.dam);
 ok("川をせき止めている巨石群が存在する", damsBefore.length > 0, damsBefore.length + "個");
 
-// 爆弾岩をダムの接触範囲（y: 950付近）へ移動
-bomb.x = 1100;
-bomb.y = 945;
-run(10); // 接近を検知して爆破イベント発動
+// ダムの接触位置へ移動
+bomb.x = damsBefore[0].x;
+bomb.y = damsBefore[0].y + 45;
+run(5);
 
-ok("せき止め巨石の爆破が成功し、ダムの石が消滅する",
-  (st.obstacles || []).filter((o) => o.dam).length === 0);
+ok("ダム接触時、ベルが『爆発させるから遠くに逃げて！』と言う",
+  (st.fairy && st.fairy.say.includes("遠くに逃げて")) ||
+  st.floaters.some((f) => f.text.includes("遠くに逃げて")));
+ok("カウントダウンが開始される", bomb.countdown != null && bomb.countdown > 0);
+
+// 9. カウントダウン進行と爆発
+st.player.x = bomb.x;
+st.player.y = bomb.y + 10; // 爆発直前に至近距離に配置（5ダメージ検証のため）
+st.player.hp = 10; // 耐えられるよう一時的にHPを増やす
+st.player.maxHp = 10;
+
+// カウントダウンを0にして爆発を発動
+bomb.countdown = 0.05;
+run(10);
+
+ok("爆発エフェクトに触れると主人公が5ダメージを受ける", st.player.hp <= 5, "HP: 10 → " + st.player.hp);
+ok("せき止め巨石が吹き飛び、ダムの石が消滅する", (st.obstacles || []).filter((o) => o.dam).length === 0);
 ok("川が流れるフラグ（riverFlowing）が立つ", !!st.flags["riverFlowing"]);
 ok("川エリアの kind が water（青い水）に変化する",
   st.world.areas.filter((a) => a.river).every((a) => a.kind === "water"));
 
-// 7. ペンギンのセリフ変化
+// 10. 水流カットシーンとペンギンの流され演出
+run(450); // カットシーン進行・完了
+closeDialogue();
+
+// 11. ペンギンのセリフ変化
 st.player.x = penguin.x;
 st.player.y = penguin.y;
 run(5);
@@ -184,12 +215,12 @@ ok("川が流れた後、ペンギンが大喜びする",
   penguin.variants[0].lines.some((l) => l.includes("水が 戻ってきた")));
 closeDialogue();
 
-// 8. 開通した奥の出口（⛩️）への到達
+// 12. 開通した奥の出口（⛩️）への到達
 const exit = st.exit;
 ok("出口が存在する", !!exit);
 st.player.x = exit.x;
 st.player.y = exit.y;
-H.step(1 / 60);
+run(10);
 ok("出口に到達してクリアできる", !!st.exit._done);
 
 // 結果表示

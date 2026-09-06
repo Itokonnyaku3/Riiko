@@ -72,7 +72,7 @@
 
   // まわりを うめる パーツ（森の かべ など）に えらべる もの
   const FILL_PARTS = ["tree", "tree2", "tree-big", "fir", "fir-big", "fir-tall",
-                      "bush-berry", "rocks", "rock-d", "rock-big", "cliff-wall", "fence", "🌴", "❄️"];
+                      "bush-berry", "rocks", "rock-d", "rock-big", "cliff-wall", "waterfall", "fence", "🌴", "❄️"];
 
   // ---- めじるし（ゲームでは つかわない。scenario.js に 書きうつす ための メモ）----
   const MARKERS = [
