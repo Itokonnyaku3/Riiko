@@ -104,11 +104,36 @@ const riverAreas = (st.world.areas || []).filter((a) => a.river);
 ok("川エリアが存在する", riverAreas.length > 0, riverAreas.length + "箇所");
 ok("川が流れる前は川底が砂・土である", riverAreas.some((a) => a.kind === "sand" || a.kind === "dirt"));
 
-// 2. 登れない2か所の滝の存在
+// 2. 登れない2か所の滝の存在と枯れ滝連動
 const wf1 = (st.obstacles || []).find((o) => o.id === "wf1" || o.sprite === "waterfall");
 const wf2 = (st.obstacles || []).find((o) => o.id === "wf2" || (o.sprite === "waterfall" && o.y < 2500));
 ok("下流に登れない滝1（waterfall）が存在する", !!wf1 && wf1.r > 0);
 ok("中流に登れない滝2（waterfall）が存在する", !!wf2 && wf2.r > 0);
+
+// 川の流路の連続性検証（y: 1350 から 3300 まで 50px ごとに川エリアが存在すること）
+let gapFound = false;
+for (let y = 1360; y <= 3300; y += 40) {
+  const inRiver = riverAreas.some((a) => {
+    if (a.shape === "rect") {
+      return 1100 >= a.x && 1100 <= a.x + a.w && y >= a.y && y <= a.y + a.h;
+    } else if (a.shape === "circle") {
+      return Math.hypot(1100 - a.x, y - a.y) <= a.r;
+    }
+    return false;
+  });
+  if (!inRiver) {
+    gapFound = true;
+    break;
+  }
+}
+ok("川の流路（最上流〜最下流）が隙間なく連続している", !gapFound);
+
+// 川の流路中央（x: 1050〜1150）に滝や橋以外の障害物（岩の壁）が存在しないこと
+const midRiverObstacles = (st.obstacles || []).filter((o) => {
+  return o.x >= 1060 && o.x <= 1140 && o.y >= 1400 && o.y <= 3300 &&
+    !o.sprite.startsWith("waterfall") && o.sprite !== "bridge";
+});
+ok("川の中央に不要な岩や障害物が存在しない", midRiverObstacles.length === 0, midRiverObstacles.length + "個");
 
 // 3. 右岸迂回路（クモの巣 s2n1）でベルを救出
 const web = st.npcs.find((n) => n.id === "s2n1");

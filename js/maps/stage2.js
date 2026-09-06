@@ -15,8 +15,8 @@ window.MAPS["stage2"] = /*MAPDATA*/{
   { "shape": "rect", "x": 960, "y": 3280, "w": 280, "h": 260, "kind": "dirt" },
   { "shape": "circle", "x": 1100, "y": 3420, "r": 150, "kind": "dirt" },
 
-  // 枯れた川 最下流（スタート地点〜滝1手前）
-  { "shape": "rect", "x": 1000, "y": 3050, "w": 200, "h": 260, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
+  // 枯れた川 最下流（スタート地点〜滝1直下）
+  { "shape": "rect", "x": 1000, "y": 2990, "w": 200, "h": 320, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
 
   // 2) 滝1前の右岸迂回路（手書き図の赤い線：右へ大きく迂回）
   { "shape": "rect", "x": 1150, "y": 3240, "w": 380, "h": 160, "kind": "dirt" },
@@ -25,20 +25,22 @@ window.MAPS["stage2"] = /*MAPDATA*/{
   // クモの巣（妖精ベル囚われ地点）
   { "shape": "circle", "x": 1780, "y": 2750, "r": 190, "kind": "dirt" },
   { "shape": "circle", "x": 1650, "y": 2520, "r": 170, "kind": "grass2" },
-  // 迂回路から橋への接続路
+  // 迂回路から橋・オアシスへの接続路
   { "shape": "rect", "x": 1180, "y": 2340, "w": 460, "h": 140, "kind": "dirt" },
 
-  // 3) 枯れた川 中流（滝1の奥〜橋〜ペンギン広場）
-  { "shape": "rect", "x": 1000, "y": 2480, "w": 200, "h": 500, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
-  { "shape": "circle", "x": 1100, "y": 2650, "r": 150, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
+  // 3) 枯れた川 中下流（滝1直上〜橋直下）
+  { "shape": "rect", "x": 1000, "y": 2400, "w": 200, "h": 590, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
 
-  // 4) ペンギンのオアシス広場（橋の南側・川岸）
-  { "shape": "circle", "x": 1100, "y": 2550, "r": 180, "kind": "grass2" },
+  // 4) ペンギンのオアシス広場（川の東岸・川べり）
+  { "shape": "circle", "x": 1260, "y": 2550, "r": 130, "kind": "grass2" },
 
   // 5) 川にかかる「はし（橋）」の足場
-  { "shape": "rect", "x": 920, "y": 2340, "w": 360, "h": 120, "kind": "wood" },
+  { "shape": "rect", "x": 960, "y": 2360, "w": 280, "h": 80, "kind": "wood" },
 
-  // 6) 滝2前の左岸迂回路（手書き図の赤い線：橋を渡って左へ迂回して北上）
+  // 6) 枯れた川 中流（橋直上〜滝2直下）
+  { "shape": "rect", "x": 1000, "y": 2160, "w": 200, "h": 240, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
+
+  // 7) 滝2前の左岸迂回路（手書き図の赤い線：橋を渡って左へ迂回して北上）
   { "shape": "circle", "x": 840, "y": 2380, "r": 160, "kind": "dirt" },
   { "shape": "circle", "x": 680, "y": 2150, "r": 170, "kind": "stone2" },
   { "shape": "circle", "x": 620, "y": 1850, "r": 180, "kind": "stone2" },
@@ -49,8 +51,8 @@ window.MAPS["stage2"] = /*MAPDATA*/{
   { "shape": "circle", "x": 500, "y": 1850, "r": 130, "kind": "stone" },
   { "shape": "circle", "x": 850, "y": 1800, "r": 130, "kind": "stone" },
 
-  // 7) 枯れた川 中上流（滝2〜せき止め石）
-  { "shape": "rect", "x": 1000, "y": 1400, "w": 200, "h": 720, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
+  // 8) 枯れた川 中上流（滝2直上〜せき止め石手前）
+  { "shape": "rect", "x": 1000, "y": 1350, "w": 200, "h": 810, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
   { "shape": "circle", "x": 1100, "y": 1750, "r": 150, "kind": "sand", "river": true, "dryKind": "sand", "dryColor": "#d2b589" },
 
   // 8) 上流広場（手書き図の「広場」）
@@ -139,14 +141,14 @@ window.MAPS["stage2"] = /*MAPDATA*/{
   { "x": 1320, "y": 2550, "r": 28, "sprite": "🪨" }
  ],
  "decorations": [
-  { "x": 1040, "y": 2540, "sprite": "🌿" },
-  { "x": 1160, "y": 2560, "sprite": "🌼" },
+  { "x": 1220, "y": 2540, "sprite": "🌿" },
+  { "x": 1270, "y": 2560, "sprite": "🌼" },
   { "x": 1020, "y": 3420, "sprite": "🌿" },
   { "x": 1180, "y": 3420, "sprite": "🌿" }
  ],
  "markers": [
   { "x": 1100, "y": 3420, "type": "start" },
-  { "x": 1100, "y": 2550, "type": "npc" },
+  { "x": 1250, "y": 2550, "type": "npc" },
   { "x": 1650, "y": 620, "type": "exit" }
  ],
  "player": {
@@ -274,7 +276,7 @@ window.MAPS["stage2"] = /*MAPDATA*/{
   // 2) ペンギン（川の水に困っている）― 橋の南側のオアシス
   {
    "id": "s2_penguin",
-   "x": 1100,
+   "x": 1250,
    "y": 2550,
    "sprite": "🐧",
    "walkKey": "penta",

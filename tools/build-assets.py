@@ -307,6 +307,7 @@ def build():
         {"id": "tree-canopy", "label": "きの はっぱ", "group": "tree", "w": 150, "h": 135, "r": 0, "size": 70, "em": "🌿"},
         {"id": "tree-canopy2", "label": "きの はっぱ2", "group": "tree", "w": 146, "h": 142, "r": 0, "size": 70, "em": "🌿"},
         {"id": "waterfall", "label": "たき", "group": "land", "w": 180, "h": 96, "r": 42, "size": 96, "em": "🌊"},
+        {"id": "waterfall-dry", "label": "かれた たき", "group": "land", "w": 180, "h": 96, "r": 42, "size": 96, "em": "🧱"},
         {"id": "waterfall-crest", "label": "たきの おちぐち", "group": "land", "w": 180, "h": 50, "r": 24, "size": 50, "em": "🌊"},
         {"id": "waterfall-cascade", "label": "たきの ながれ", "group": "land", "w": 180, "h": 70, "r": 0, "size": 70, "em": "🌊"},
         {"id": "waterfall-basin", "label": "たきつぼ", "group": "land", "w": 180, "h": 50, "r": 24, "size": 50, "em": "🌊"},

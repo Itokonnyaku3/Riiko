@@ -3117,17 +3117,32 @@
     }
 
     // しょうがいぶつ（かげ＋絵）
+    const isRiverFlowing = !!G.flags["riverFlowing"];
     for (const o of G.obstacles) {
       if (!onScreen(o.x, o.y, 60)) continue;
+
+      // 滝の枯れ・流水の連動
+      let sprite = o.sprite;
+      if (!isRiverFlowing) {
+        if (sprite === "waterfall") {
+          sprite = "waterfall-dry"; // 川が枯れている時は水のない乾いた段差崖
+        } else if (sprite === "waterfall-basin") {
+          continue; // 川が枯れている時は滝壺の白泡は出ない
+        }
+      }
+
       renderables.push({
         baseY: o.y + (o.r ? o.r * 0.55 : 0),
         draw: () => {
-          ctx.fillStyle = "rgba(0,0,0,0.12)";
-          ctx.beginPath();
-          ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#000"; // かげの うすい色を もどす
-          Assets.drawPart(ctx, o.sprite, o.x + ox, o.y + oy, o.r);
+          // 滝パーツはグラフィック自体に崖や水流の陰影があるため丸い影は描かない
+          if (o.r && !sprite.startsWith("waterfall")) {
+            ctx.fillStyle = "rgba(0,0,0,0.12)";
+            ctx.beginPath();
+            ctx.ellipse(o.x + ox, o.y + oy + o.r * 0.5, o.r, o.r * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000"; // かげの うすい色を もどす
+          }
+          Assets.drawPart(ctx, sprite, o.x + ox, o.y + oy, o.r);
         },
       });
     }
