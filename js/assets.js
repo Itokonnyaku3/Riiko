@@ -31,6 +31,7 @@
     "🚧": "fence", "🏠": "house", "🛖": "house-straw", "🏰": "castle-far",
     "⛰️": "mountain", "🛢️": "barrel", "📦": "crate", "🗿": "rock-d", "⛲": "well",
     "🌿": "grass-tuft", "☘️": "grass-small", "🌊": "waterfall",
+    "☁️": "cloud-big", "🌌": "sky",
   };
 
   function def(sprite) {

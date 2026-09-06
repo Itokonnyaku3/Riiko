@@ -290,13 +290,30 @@ def build():
                 if opt == "main":
                     crop = keep_main(crop)  # となりの 見本タイルを おとす
                 crop = trim(drop_lines(crop))
-            img = Image.fromarray(crop, "RGBA")
-            img.save(os.path.join(OUT_DIR, pid + ".png"))
+            out_path = os.path.join(OUT_DIR, pid + ".png")
+            # castle-far は高精度透過処理済みPNGを保護
+            if not (pid == "castle-far" and os.path.exists(out_path)):
+                img = Image.fromarray(crop, "RGBA")
+                img.save(out_path)
+            else:
+                img = Image.open(out_path)
             entries.append({
                 "id": pid, "label": label, "group": group,
                 "w": img.width, "h": img.height,
                 "r": r, "size": size, "em": em,
             })
+    # 手動生成された追加パーツ（滝・空・雲）
+    EXTRA_PARTS = [
+        {"id": "waterfall", "label": "たき", "group": "land", "w": 174, "h": 180, "r": 42, "size": 130, "em": "🌊"},
+        {"id": "sky-clouds", "label": "そらと くも", "group": "land", "w": 328, "h": 200, "r": 0, "size": 200, "em": "☁️"},
+        {"id": "sky", "label": "そら", "group": "land", "w": 328, "h": 200, "r": 0, "size": 200, "em": "🌌"},
+        {"id": "cloud-big", "label": "おおきな くも", "group": "land", "w": 231, "h": 98, "r": 0, "size": 100, "em": "☁️"},
+        {"id": "cloud-wind", "label": "ながれる くも", "group": "land", "w": 206, "h": 99, "r": 0, "size": 100, "em": "☁️"},
+        {"id": "cloud-small", "label": "ちいさな くも", "group": "land", "w": 62, "h": 52, "r": 0, "size": 50, "em": "☁️"},
+    ]
+    for ep in EXTRA_PARTS:
+        if not any(e["id"] == ep["id"] for e in entries):
+            entries.append(ep)
     order = list(GROUP_LABEL.keys())
     entries.sort(key=lambda e: (order.index(e["group"]), 0))
     write_js(entries)

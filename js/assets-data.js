@@ -98,6 +98,11 @@
       { id: "cliff", label: "がけ", group: "land", w: 146, h: 250, r: 45, size: 146, em: "🧱" },
       { id: "cliff2", label: "がけ2", group: "land", w: 143, h: 253, r: 45, size: 148, em: "🧱" },
       { id: "waterfall", label: "たき", group: "land", w: 174, h: 180, r: 42, size: 130, em: "🌊" },
+      { id: "sky-clouds", label: "そらと くも", group: "land", w: 328, h: 200, r: 0, size: 200, em: "☁️" },
+      { id: "sky", label: "そら", group: "land", w: 328, h: 200, r: 0, size: 200, em: "🌌" },
+      { id: "cloud-big", label: "おおきな くも", group: "land", w: 231, h: 98, r: 0, size: 100, em: "☁️" },
+      { id: "cloud-wind", label: "ながれる くも", group: "land", w: 206, h: 99, r: 0, size: 100, em: "☁️" },
+      { id: "cloud-small", label: "ちいさな くも", group: "land", w: 62, h: 52, r: 0, size: 50, em: "☁️" },
     ],
   };
 })();
