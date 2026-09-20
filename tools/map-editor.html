@@ -1,7 +1,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>🗺️ マップ作成ツール ― ねこの相棒とふしぎの島</title>
-<link rel="stylesheet" href="map-editor.css" />
+<link rel="stylesheet" href="map-editor.css?v=20260909_polish2" />
 
 <div id="app">
   <!-- ===== うえの バー（ファイルの こと） ===== -->
@@ -49,9 +49,10 @@
     </section>
 
     <section id="sec-ground">
-      <h3>じめん（あるける ところ）</h3>
+      <h3>じめん・水面</h3>
       <div id="kinds" class="chips"></div>
       <label class="row">ふで／けしゴム <input id="f-brush" type="range" min="20" max="220" step="5" /><span id="v-brush"></span></label>
+      <p class="note">🔒 水・溶岩は通れません。あとから重ねた木道・砂地などは通れます。</p>
     </section>
 
     <section id="sec-part">
@@ -71,7 +72,7 @@
     <section id="sec-marker">
       <h3>めじるし（メモ）</h3>
       <div id="markers" class="chips"></div>
-      <p class="note">めじるしは ゲームには 出ません。ばしょを メモして、あとで scenario.js に 書きうつす ためのものです。</p>
+      <p class="note">めじるしはゲームには出ない自由なメモです。実際の人物や発火地点は「イベント」モードで置けます。</p>
     </section>
 
     <section id="sec-fill">
@@ -107,6 +108,11 @@
       <h3>イベントを おく</h3>
       <div id="ev-tools" class="tools"></div>
       <p class="note">クリックで あたらしく おく。すでに ある ものを クリックすると 右に 編集パネルが 出る（ドラッグで 動かせる）。</p>
+    </section>
+    <section id="sec-event-overview" class="hidden">
+      <h3>🧭 イベント発火一覧</h3>
+      <div id="event-overview"></div>
+      <p class="note">クリックすると発火地点へ移動します。🤖はコードで動くイベントで、位置・条件・結果はここから確認できます。</p>
     </section>
     <section id="sec-hints" class="hidden">
       <h3>💡 ヒント（うえから じゅんに 出る）</h3>
@@ -155,9 +161,10 @@
 <script>window.PART_ASSET_BASE = "../";</script>
 <script src="../js/assets-data.js?v=20260906_1145"></script>
 <script src="../js/assets.js?v=20260906_1145"></script>
-<script src="../js/mapdata.js?v=20260906_1145"></script>
+<script src="../js/mapdata.js?v=20260909_polish2"></script>
 <script src="../js/scenario.js?v=20260906_1145"></script>
 <!-- できあがっている マップ（ふえたら ここに ふやす） -->
-<script src="../js/maps/stage1.js?v=20260906_1145"></script>
+<script src="../js/maps/stage1.js?v=20260909_polish2"></script>
 <script src="../js/maps/stage2.js?v=20260906_1145"></script>
-<script src="map-editor.js?v=20260906_1145"></script>
+<script src="../js/maps/stage3.js?v=20260909_polish2"></script>
+<script src="map-editor.js?v=20260909_polish2"></script>

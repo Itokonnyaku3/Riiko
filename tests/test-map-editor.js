@@ -113,12 +113,19 @@ eval(fs.readFileSync(path.join(ROOT, "js/mapdata.js"), "utf8"));
 eval(fs.readFileSync(path.join(ROOT, "js/maps/stage1.js"), "utf8"));
 const MapData = global.window.MapData;
 global.MapData = MapData;
+
+// コメント付きの本番マップを、evalせず安全に再読込できること
+const parsedStage2 = MapData.parseMapText(fs.readFileSync(path.join(ROOT, "js/maps/stage2.js"), "utf8"));
+const parsedStage3 = MapData.parseMapText(fs.readFileSync(path.join(ROOT, "js/maps/stage3.js"), "utf8"));
 eval(fs.readFileSync(path.join(ROOT, "tools/map-editor.js"), "utf8"));
 
 // ---- ここから テスト ----
 const canvas = getEl("map");
 const T = [];
 const ok = (name, cond, extra) => { T.push([cond ? "✅" : "❌", name, extra === undefined ? "" : extra]); };
+ok("コメント付き stage2 を再読込できる", parsedStage2.name === "stage2" && parsedStage2.areas.length > 0);
+ok("コメント付き stage3 を再読込できる", parsedStage3.name === "stage3" && parsedStage3.triggers.length >= 3);
+ok("文字列中のコメント記号は保持する", MapData.stripJsonComments('{"url":"https://example.test/a/*b*/"}// memo').includes("https://example.test/a/*b*/"));
 
 function frame(ts) { if (rafCb) { const cb = rafCb; rafCb = null; cb(ts); } }
 function pe(type, x, y, btn) {
@@ -156,6 +163,16 @@ const a0 = data().areas[0];
 ok("じめん□が できる", !!a0 && a0.shape === "rect" && a0.w > 100, JSON.stringify(a0));
 ok("じめんは マップの 中に おさまる",
   a0.x >= 0 && a0.y >= 0 && a0.x + a0.w <= world.w + 1 && a0.y + a0.h <= world.h + 1);
+
+// 2.5) ふでは円を大量に置かず、1本の滑らかなパスとして保存する
+tool("ground-brush");
+at("pointerdown", 220, 780);
+at("pointermove", 360, 820);
+at("pointermove", 520, 780);
+at("pointerup", 520, 780);
+const brushPath = data().areas.find((a) => a.shape === "path");
+ok("じめんの ふでは滑らかなパスになる", !!brushPath && brushPath.points.length >= 3, JSON.stringify(brushPath));
+ok("パスの上は歩ける地面として判定される", MapData.inArea(brushPath, 360, 820, 0));
 
 // 3) 森が じめんの ぶんだけ へる
 const fillAll = MapData.buildFill({ world: { width: 1400, height: 2200 }, areas: [], fill: data().fill });

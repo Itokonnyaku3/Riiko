@@ -16,6 +16,14 @@
   const PLAYER_WALK = window.WALKS.player;
   const ENEMY_WALK = window.WALKS.enemy;
 
+  // 発火位置・半径・説明はマップ側に置き、複雑な処理だけをこのファイルで実装する。
+  // これによりエディタで位置を微調整しても、実際のイベントへそのまま反映される。
+  const scriptedTrigger = (id, action) => {
+    const placed = (MAP.triggers || []).find((t) => t.id === id);
+    if (!placed) throw new Error("マップにイベント地点がありません: " + id);
+    return { ...placed, action };
+  };
+
   // 敵の歩行アニメーションキーを付与
   const enemiesWithWalk = (MAP.enemies || []).map((e) => {
     if (e.walkKey || e.walk) {
@@ -104,7 +112,7 @@
         sprite: "👧",
         name: "ハナ",
         walkKey: "hana",
-        if: "!hanaSeen",
+        ifNot: "hanaSeen",
         lines: ["リイコ…！ 助けて…！"],
       },
     ],
@@ -113,12 +121,7 @@
     // トリガーイベント
     triggers: [
       // 1) 冒頭：ベルとの会話とルート選択肢
-      {
-        id: "trig_s3_intro",
-        x: 1300,
-        y: 3380,
-        r: 60,
-        action: function (G, Sfx, Dialogue) {
+      scriptedTrigger("trig_s3_intro", function (G, Sfx, Dialogue) {
           if (G.flags.s3IntroDone) return;
           G.flags.s3IntroDone = true;
 
@@ -153,16 +156,10 @@
           ];
 
           Dialogue.open("ベル", lines, null, choices);
-        },
-      },
+      }),
 
       // 2) 湖上砦での包囲ピンチと、相棒猫ミィの乱入参戦！
-      {
-        id: "trig_fort_trap",
-        x: 1300,
-        y: 2180,
-        r: 90,
-        action: function (G, Sfx, Dialogue) {
+      scriptedTrigger("trig_fort_trap", function (G, Sfx, Dialogue) {
           if (G.flags.fortTrapTriggered) return;
           G.flags.fortTrapTriggered = true;
 
@@ -242,16 +239,10 @@
               });
             });
           });
-        },
-      },
+      }),
 
       // 3) 神殿最奥：ハナ遭遇・かげマント強襲連れ去りドラマ演出
-      {
-        id: "trig_temple_hana",
-        x: 1300,
-        y: 680,
-        r: 80,
-        action: function (G, Sfx, Dialogue) {
+      scriptedTrigger("trig_temple_hana", function (G, Sfx, Dialogue) {
           if (G.flags.hanaSeen) return;
           G.flags.hanaSeen = true;
 
@@ -332,8 +323,7 @@
               });
             });
           });
-        },
-      },
+      }),
     ],
   };
 })();

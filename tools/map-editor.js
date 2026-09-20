@@ -120,6 +120,18 @@
   }
   // ふるい マップ ファイル（イベントの ぶぶんが ない）を よみこんだ ときの おぎない
   function fillEventDefaults(d) {
+    d.areas = d.areas || [];
+    d.fill = d.fill || { on: false, sprite: "tree", r: 26, gap: 58, jitter: 14, margin: 24, exclude: [] };
+    d.fill.exclude = d.fill.exclude || [];
+    // 初期の3面データは obstacles という名前。エディタ内では objects に統一し、
+    // 書き出し時に二重配置されないよう旧キーを取り除く。
+    if (!Array.isArray(d.objects) && Array.isArray(d.obstacles)) {
+      d.objects = d.obstacles;
+      delete d.obstacles;
+    }
+    d.objects = d.objects || [];
+    d.decorations = d.decorations || [];
+    d.markers = d.markers || [];
     d.player = d.player || null;
     d.npcs = d.npcs || [];
     d.enemies = d.enemies || [];
@@ -191,6 +203,7 @@
   }
 
   function save() {
+    if (S.mode === "events") renderEventOverview();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
@@ -347,6 +360,19 @@
         ctx.beginPath();
         ctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
         ctx.fill();
+      } else if (a.shape === "path") {
+        const pts = a.points || [];
+        if (!pts.length) continue;
+        ctx.save();
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = (a.width || 1) + 5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y + 1.5);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y + 1.5);
+        ctx.stroke();
+        ctx.restore();
       } else {
         roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, Math.min(18, a.w / 2, a.h / 2) + 2);
         ctx.fill();
@@ -363,6 +389,19 @@
         ctx.beginPath();
         ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
         ctx.fill();
+      } else if (a.shape === "path") {
+        const pts = a.points || [];
+        if (!pts.length) continue;
+        ctx.save();
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = a.width || 1;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+        ctx.restore();
       } else {
         roundRect(a.x, a.y, a.w, a.h, Math.min(18, a.w / 2, a.h / 2));
         ctx.fill();
@@ -677,7 +716,17 @@
     }
     S.drag = { tool: t, lastX: x, lastY: y };
     snapshot();
-    if (t === "ground-brush") paintGround(x, y);
+    if (t === "ground-brush") {
+      const area = {
+        shape: "path",
+        points: [{ x: cx(sn(x)), y: cy(sn(y)) }],
+        width: Math.round(S.brushR * 2),
+        kind: S.kind,
+      };
+      S.data.areas.push(area);
+      S.drag.area = area;
+      rebuildFill();
+    }
     else if (t === "part") placePart(x, y);
     else if (t === "deco") placeDeco(x, y);
     else if (t === "marker") placeMarker(x, y);
@@ -692,8 +741,9 @@
     if (!dg || dg.preview) return;
     const step = Math.hypot(x - dg.lastX, y - dg.lastY);
     if (dg.tool === "ground-brush") {
-      if (step < S.brushR * 0.45) return;
-      paintGround(x, y);
+      if (step < Math.max(8, S.brushR * 0.22)) return;
+      dg.area.points.push({ x: cx(sn(x)), y: cy(sn(y)) });
+      rebuildFill();
     } else if (dg.tool === "part") {
       if (step < S.space) return;
       placePart(x, y);
@@ -752,11 +802,6 @@
   }
   function cy(v) {
     return Math.max(0, Math.min(S.data.world.height, Math.round(v)));
-  }
-
-  function paintGround(x, y) {
-    S.data.areas.push({ shape: "circle", x: cx(sn(x)), y: cy(sn(y)), r: Math.round(S.brushR), kind: S.kind });
-    rebuildFill();
   }
 
   function placePart(x, y, noSnap) {
@@ -988,6 +1033,12 @@
         label = o.label || "出口";
       } else if (kind === "chest") {
         label = o.item ? "宝:" + o.item : "宝箱";
+      } else if (kind === "trigger") {
+        label = (o.eventInfo && o.eventInfo.title) || o.name || o.id || "トリガー";
+      } else if (kind === "checkpoint") {
+        label = o.id || "チェックポイント";
+      } else if (kind === "gate") {
+        label = o.name || o.id || "とびら";
       }
 
       if (!drawn) {
@@ -997,6 +1048,7 @@
         drawEventTag(label, o.x, o.y - 30);
       }
     };
+    drawEventLinks();
     if (d.player) drawOne("start", d.player, -1);
     if (d.exit) drawOne("exit", d.exit, -1);
     (d.npcs || []).forEach((o, i) => drawOne("npc", o, i));
@@ -1013,6 +1065,31 @@
       ctx.arc(h.point.x, h.point.y, 10, 0, Math.PI * 2);
       ctx.fill();
     });
+  }
+
+  function drawEventLinks() {
+    const all = [];
+    ["npcs", "enemies", "chests", "checkpoints", "triggers", "gates"].forEach((key) => {
+      for (const o of S.data[key] || []) if (o && o.id) all.push(o);
+    });
+    const byId = Object.fromEntries(all.map((o) => [o.id, o]));
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 205, 105, 0.62)";
+    ctx.lineWidth = 2 / S.zoom;
+    ctx.setLineDash([8 / S.zoom, 6 / S.zoom]);
+    for (const trigger of S.data.triggers || []) {
+      const targets = trigger.eventInfo && trigger.eventInfo.targets;
+      if (!Array.isArray(targets)) continue;
+      for (const id of targets) {
+        const target = byId[id];
+        if (!target) continue;
+        ctx.beginPath();
+        ctx.moveTo(trigger.x, trigger.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   // =========================================================
@@ -1420,6 +1497,29 @@
     add(fieldRow("はんい（r）", numberInput(ev.r || 70, (v) => { ev.r = v; save(); })));
   }
   function renderTriggerFields(add, ev) {
+    if (ev.eventInfo) {
+      const info = document.createElement("div");
+      info.className = "event-info";
+      const title = document.createElement("b");
+      title.textContent = "🤖 " + (ev.eventInfo.title || "コード実装イベント");
+      info.appendChild(title);
+      const fire = document.createElement("div");
+      fire.textContent = "発火：" + (ev.eventInfo.fire || "この範囲に入ったとき");
+      info.appendChild(fire);
+      const effects = document.createElement("ul");
+      for (const line of ev.eventInfo.effects || []) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        effects.appendChild(li);
+      }
+      info.appendChild(effects);
+      if (ev.eventInfo.source) {
+        const src = document.createElement("code");
+        src.textContent = ev.eventInfo.source;
+        info.appendChild(src);
+      }
+      add(info);
+    }
     add(fieldRow("はんい（r）", numberInput(ev.r || 70, (v) => { ev.r = v; save(); })));
     add(fieldRow("mutter（小さく でる ひとこと）", textInput(ev.mutter || "", (v) => { if (v) ev.mutter = v; else delete ev.mutter; save(); })));
     add(row2(
@@ -1611,8 +1711,38 @@
   // =========================================================
   function renderEventPanels() {
     if (S.mode !== "events") return;
+    renderEventOverview();
     renderHintList();
     if (S.selected) renderInspector();
+  }
+
+  function renderEventOverview() {
+    const box = $("event-overview");
+    if (!box) return;
+    box.innerHTML = "";
+    const triggers = S.data.triggers || [];
+    if (!triggers.length) {
+      const empty = document.createElement("p");
+      empty.className = "note";
+      empty.textContent = "この面にはトリガーがありません。";
+      box.appendChild(empty);
+      return;
+    }
+    triggers.forEach((ev, index) => {
+      const button = document.createElement("button");
+      button.className = "event-overview-row";
+      const scripted = !!ev.eventInfo;
+      const condition = (ev.eventInfo && ev.eventInfo.fire) || (ev.if ? "if: " + ev.if : ev.ifNot ? "ifNot: " + ev.ifNot : "条件なし");
+      const title = (ev.eventInfo && ev.eventInfo.title) || ev.name || ev.id || "トリガー";
+      button.textContent = (scripted ? "🤖 " : "⚡ ") + title + "\n" + condition + " / (" + Math.round(ev.x) + ", " + Math.round(ev.y) + ")";
+      button.onclick = () => {
+        S.zoom = Math.max(S.zoom, 0.7);
+        S.cam.x = ev.x - canvas.clientWidth / S.zoom / 2;
+        S.cam.y = ev.y - canvas.clientHeight / S.zoom / 2;
+        openInspector("trigger", index);
+      };
+      box.appendChild(button);
+    });
   }
 
   // =========================================================
@@ -1623,10 +1753,14 @@
     document.querySelectorAll("#modebar button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
     $("terrain-sections").classList.toggle("hidden", mode !== "terrain");
     $("sec-events").classList.toggle("hidden", mode !== "events");
+    $("sec-event-overview").classList.toggle("hidden", mode !== "events");
     $("sec-hints").classList.toggle("hidden", mode !== "events");
     $("sec-intro").classList.toggle("hidden", mode !== "events");
     if (mode !== "events") closeInspector();
-    else renderHintList();
+    else {
+      renderEventOverview();
+      renderHintList();
+    }
     if (S.walk) toggleWalk();
   }
 
@@ -1641,10 +1775,13 @@
     }
     const st = S.data.markers.find((m) => m.type === "start");
     const a = S.data.areas[0];
+    const ap = a && a.shape === "path" && a.points && a.points[0];
     const p = st
       ? { x: st.x, y: st.y }
       : a
-      ? { x: a.shape === "circle" ? a.x : a.x + a.w / 2, y: a.shape === "circle" ? a.y : a.y + a.h / 2 }
+      ? ap
+        ? { x: ap.x, y: ap.y }
+        : { x: a.shape === "circle" ? a.x : a.x + a.w / 2, y: a.shape === "circle" ? a.y : a.y + a.h / 2 }
       : { x: S.data.world.width / 2, y: S.data.world.height / 2 };
     S.walk = { x: p.x, y: p.y, keys: {} };
     S.zoom = Math.max(S.zoom, 0.9);
@@ -1654,6 +1791,7 @@
   function updateWalk(dt) {
     const w = S.walk;
     if (!w) return;
+    const prevX = w.x, prevY = w.y;
     let kx = 0,
       ky = 0;
     const k = w.keys;
@@ -1706,6 +1844,11 @@
     for (const o of S.data.objects) push(o);
     w.x = fx;
     w.y = fy - footOffset;
+
+    if (M.isPassable && !M.isPassable(S.data, w.x, w.y + footOffset)) {
+      w.x = prevX;
+      w.y = prevY;
+    }
 
     w.x = Math.max(20, Math.min(S.data.world.width - 20, w.x));
     w.y = Math.max(20, Math.min(S.data.world.height - 20, w.y));
@@ -1908,7 +2051,8 @@
       const b = document.createElement("div");
       b.className = "chip";
       b.dataset.kind = k;
-      b.innerHTML = '<span class="sw" style="background:' + g.color + '"></span><span class="lb">' + g.label + "</span>";
+      b.innerHTML = '<span class="sw" style="background:' + g.color + '"></span><span class="lb">' + (g.passable === false ? "🔒 " : "") + g.label + "</span>";
+      b.title = g.passable === false ? "キャラクターは通れません" : "通れる地形です";
       b.onclick = () => {
         S.kind = k;
         if (S.tool.indexOf("ground") !== 0) S.tool = "ground-rect";
@@ -2081,12 +2225,9 @@
       const res = await fetch("../js/maps/" + stageName + ".js?t=" + Date.now(), { cache: "no-store" });
       if (res.ok) {
         const text = await res.text();
-        const m = text.match(/\/\*MAPDATA\*\/(.*?)(?:\/\*ENDMAPDATA\*\/|;?\s*$)/s);
-        if (m && m[1]) {
-          mapData = JSON.parse(m[1].trim().replace(/;$/, ""));
-          window.MAPS = window.MAPS || {};
-          window.MAPS[stageName] = mapData;
-        }
+        mapData = M.parseMapText(text);
+        window.MAPS = window.MAPS || {};
+        window.MAPS[stageName] = mapData;
       }
     } catch (e) {
       console.warn("fetch loadStageFile fallback:", e);

@@ -116,6 +116,36 @@ ok("初期状態では相棒猫ミィはまだ加入していない（null）", 
 ok("武器リストに『けん』と『ブーメラン』を所持している", Array.isArray(S.weapons) && S.weapons.includes("sword") && S.weapons.includes("boomerang"));
 ok("初期装備武器は『けん』である", S.currentWeapon === "sword");
 
+// 湖そのものは通れず、上に重なった木道・浅瀬だけを歩ける
+ok("湖の深い水は通行できない", MapData.isPassable(S.world, 1300, 3200) === false);
+ok("西ルートの木道は通行できる", MapData.isPassable(S.world, 900, 3250) === true);
+ok("東ルートの浅瀬は通行できる", MapData.isPassable(S.world, 1500, 3330) === true);
+
+// 中央から湖へ直進してルートを飛ばせない
+const introForTerrainTest = S.triggers.find(t => t.id === "trig_s3_intro");
+introForTerrainTest._done = true;
+S.player.x = 1300;
+S.player.y = 3350;
+H.press("w", true);
+run(90);
+H.press("w", false);
+ok("中央から湖へ入れず、左右どちらかのルートを選ぶ必要がある", S.player.y >= 3275, "y=" + Math.round(S.player.y));
+S.player.x = 1300;
+S.player.y = 3550;
+// 移動テスト中に敵AIも進むため、以降の戦闘テスト用に面を初期化する
+G.start("stage3", { continue: false });
+
+ok("コード実装イベントに発火条件と結果の説明がある",
+  S.triggers.filter(t => typeof t.action === "function").every(t => t.eventInfo && t.eventInfo.fire && t.eventInfo.effects.length));
+ok("コード実装イベントの座標はマップデータと一致する",
+  S.triggers.every(t => {
+    const placed = window.MAPS.stage3.triggers.find(m => m.id === t.id);
+    return !placed || (placed.x === t.x && placed.y === t.y && placed.r === t.r);
+  }));
+drawn.length = 0;
+H.step(1 / 60);
+ok("アイテム鍵ではない門をHUDカウンターに出さない", !drawn.some(d => d.x === 25 && d.y === 32));
+
 // 2. 武器切り替え（剣 ⇔ ブーメラン）と投擲・スタン・回収テスト
 H.swapWeapon();
 ok("武器切り替えで現在武器がブーメラン（boomerang）になる", S.currentWeapon === "boomerang");

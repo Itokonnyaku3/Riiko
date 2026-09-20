@@ -1440,6 +1440,28 @@
     ent.y = fy - footOffset;
   }
 
+  function isTerrainPassable(ent, x, y) {
+    if (typeof MapData === "undefined" || !MapData.isPassable || !G.world) return true;
+    const footOffset = (ent.size || 44) * 0.28;
+    return MapData.isPassable(G.world, x, y + footOffset);
+  }
+
+  // X/Yを分けて試すことで、水辺や溶岩の縁に沿って自然に滑れる。
+  function movePlayerWithCollisions(ent, dx, dy) {
+    const tryAxis = (axis, amount) => {
+      if (!amount) return;
+      const oldX = ent.x, oldY = ent.y;
+      ent[axis] += amount;
+      resolveObstacles(ent, PLAYER_R);
+      if (!isTerrainPassable(ent, ent.x, ent.y)) {
+        ent.x = oldX;
+        ent.y = oldY;
+      }
+    };
+    tryAxis("x", dx);
+    tryAxis("y", dy);
+  }
+
   // ---- ざひょうが 障害物と ぶつかっていないか（フェイルセーフ用） ----
   function isSafePosition(x, y, radius) {
     const r = radius || PLAYER_R;
@@ -2104,11 +2126,9 @@
     // 敵や被弾によるノックバック／バウンス移動
     if (p.knockT > 0) {
       p.knockT -= dt;
-      p.x += p.knockX * dt;
-      p.y += p.knockY * dt;
+      movePlayerWithCollisions(p, p.knockX * dt, p.knockY * dt);
       p.knockX *= 0.82;
       p.knockY *= 0.82;
-      resolveObstacles(p, PLAYER_R);
     }
 
     // 主人公は キーボード／バーチャルジョイスティック だけで うごく
@@ -2119,9 +2139,7 @@
       p.dirY = ky / len;
       // 剣を ふって いる あいだは すこし ゆっくり
       const sp = (p.atkT > 0 ? p.speed * 0.45 : p.speed) * normSpeed;
-      p.x += (kx / len) * sp * dt;
-      p.y += (ky / len) * sp * dt;
-      resolveObstacles(p, PLAYER_R);
+      movePlayerWithCollisions(p, (kx / len) * sp * dt, (ky / len) * sp * dt);
       advanceWalk(p, dt, kx, ky); // あるく絵の むき・コマ
     } else {
       advanceWalk(p, dt, 0, 0); // とまったら 立ちの 絵
@@ -3933,8 +3951,8 @@
   function drawHud() {
     drawHearts();
     drawGoal();
-    const g = G.gates[0];
-    if (!g || g.open) return;
+    const g = G.gates.find((gate) => !gate.open && gate.requireKey && gate.requireCount != null);
+    if (!g) return;
     const have = G.items[g.requireKey] || 0;
     const text = (g.hudIcon || "🔮") + " " + have + " / " + g.requireCount;
     ctx.font = "bold 22px system-ui, 'Segoe UI Emoji', sans-serif";
@@ -3954,6 +3972,54 @@
 
   function invalidateAreaChunks() {
     areaChunks = null;
+  }
+
+  function areaBounds(a, pad) {
+    const p = pad || 0;
+    if (a.shape === "circle") {
+      const r = (a.r || 0) + p;
+      return { x: a.x - r, y: a.y - r, w: r * 2, h: r * 2 };
+    }
+    if (a.shape === "path") {
+      const pts = a.points || [];
+      if (!pts.length) return { x: 0, y: 0, w: 0, h: 0 };
+      let minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y;
+      for (const pt of pts) {
+        minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+        minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+      }
+      const r = (a.width || 0) * 0.5 + p;
+      return { x: minX - r, y: minY - r, w: maxX - minX + r * 2, h: maxY - minY + r * 2 };
+    }
+    return { x: a.x - p, y: a.y - p, w: (a.w || 0) + p * 2, h: (a.h || 0) + p * 2 };
+  }
+
+  function paintAreaShape(drawCtx, a, expand) {
+    const ex = expand || 0;
+    if (a.shape === "circle") {
+      drawCtx.beginPath();
+      drawCtx.arc(a.x, a.y + (ex ? 1.5 : 0), (a.r || 0) + ex, 0, Math.PI * 2);
+      drawCtx.fill();
+      return;
+    }
+    if (a.shape === "path") {
+      const pts = a.points || [];
+      if (!pts.length) return;
+      drawCtx.save();
+      drawCtx.strokeStyle = drawCtx.fillStyle;
+      drawCtx.lineWidth = Math.max(1, (a.width || 1) + ex * 2);
+      drawCtx.lineCap = "round";
+      drawCtx.lineJoin = "round";
+      drawCtx.beginPath();
+      drawCtx.moveTo(pts[0].x, pts[0].y + (ex ? 1.5 : 0));
+      for (let i = 1; i < pts.length; i++) drawCtx.lineTo(pts[i].x, pts[i].y + (ex ? 1.5 : 0));
+      drawCtx.stroke();
+      drawCtx.restore();
+      return;
+    }
+    const rad = Math.min(18, a.w / 2, a.h / 2);
+    roundRect(a.x - ex, a.y, a.w + ex * 2, a.h + ex + (ex ? 1.5 : 0), rad + ex, drawCtx);
+    drawCtx.fill();
   }
 
   function getAreaChunks() {
@@ -3977,12 +4043,8 @@
 
         // このチャンクに重なるエリアのみ抽出（余白15px）
         const overlapping = areas.filter((a) => {
-          if (a.shape === "circle") {
-            const rad = (a.r || 0) + 15;
-            return a.x + rad >= cx && a.x - rad <= cx + cw && a.y + rad >= cy && a.y - rad <= cy + ch;
-          } else {
-            return a.x + (a.w || 0) + 15 >= cx && a.x - 15 <= cx + cw && a.y + (a.h || 0) + 15 >= cy && a.y - 15 <= cy + ch;
-          }
+          const b = areaBounds(a, 15);
+          return b.x + b.w >= cx && b.x <= cx + cw && b.y + b.h >= cy && b.y <= cy + ch;
         });
 
         if (!overlapping.length) continue;
@@ -3999,15 +4061,7 @@
         cctx.fillStyle = "rgba(0, 0, 0, 0.09)";
         for (const a of overlapping) {
           if (a.kind !== "dirt" && a.kind !== "stone" && a.kind !== "stone2") continue;
-          if (a.shape === "circle") {
-            cctx.beginPath();
-            cctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
-            cctx.fill();
-          } else {
-            const rad = Math.min(18, a.w / 2, a.h / 2);
-            roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, rad + 2, cctx);
-            cctx.fill();
-          }
+          paintAreaShape(cctx, a, 2.5);
         }
 
         // パス2: 各エリアの本体テクスチャ塗り
@@ -4017,17 +4071,8 @@
             ? Assets.getGroundPattern(cctx, a.kind, col)
             : col;
 
-          if (a.shape === "circle") {
-            cctx.fillStyle = pat;
-            cctx.beginPath();
-            cctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
-            cctx.fill();
-          } else {
-            const rad = Math.min(18, a.w / 2, a.h / 2);
-            cctx.fillStyle = pat;
-            roundRect(a.x, a.y, a.w, a.h, rad, cctx);
-            cctx.fill();
-          }
+          cctx.fillStyle = pat;
+          paintAreaShape(cctx, a, 0);
         }
 
         areaChunks.push({ x: cx, y: cy, w: cw, h: ch, canvas: cvs });
@@ -4058,19 +4103,9 @@
     ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
     for (const a of areas) {
       if (a.kind !== "dirt" && a.kind !== "stone" && a.kind !== "stone2") continue;
-      if (a.shape === "circle") {
-        if (a.x + a.r + 4 < -ox || a.x - a.r - 4 > -ox + viewW) continue;
-        if (a.y + a.r + 4 < -oy || a.y - a.r - 4 > -oy + viewH) continue;
-        ctx.beginPath();
-        ctx.arc(a.x, a.y + 1.5, a.r + 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        if (a.x + a.w + 4 < -ox || a.x - 4 > -ox + viewW) continue;
-        if (a.y + a.h + 4 < -oy || a.y - 4 > -oy + viewH) continue;
-        const rad = Math.min(18, a.w / 2, a.h / 2);
-        roundRect(a.x - 2, a.y, a.w + 4, a.h + 3.5, rad + 2);
-        ctx.fill();
-      }
+      const b = areaBounds(a, 4);
+      if (b.x + b.w < -ox || b.x > -ox + viewW || b.y + b.h < -oy || b.y > -oy + viewH) continue;
+      paintAreaShape(ctx, a, 2.5);
     }
 
     // パス2: 各エリアの本体テクスチャ塗り
@@ -4080,23 +4115,10 @@
         ? Assets.getGroundPattern(ctx, a.kind, col)
         : col;
 
-      if (a.shape === "circle") {
-        if (a.x + a.r < -ox || a.x - a.r > -ox + viewW) continue;
-        if (a.y + a.r < -oy || a.y - a.r > -oy + viewH) continue;
-
-        ctx.fillStyle = pat;
-        ctx.beginPath();
-        ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        if (a.x + a.w < -ox || a.x > -ox + viewW) continue;
-        if (a.y + a.h < -oy || a.y > -oy + viewH) continue;
-        const rad = Math.min(18, a.w / 2, a.h / 2);
-
-        ctx.fillStyle = pat;
-        roundRect(a.x, a.y, a.w, a.h, rad);
-        ctx.fill();
-      }
+      const b = areaBounds(a, 0);
+      if (b.x + b.w < -ox || b.x > -ox + viewW || b.y + b.h < -oy || b.y > -oy + viewH) continue;
+      ctx.fillStyle = pat;
+      paintAreaShape(ctx, a, 0);
     }
 
     ctx.restore();

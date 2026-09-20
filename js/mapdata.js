@@ -13,6 +13,7 @@
  *    areas: [                                  // 歩ける じめん
  *      { shape:"rect",   x, y, w, h, kind:"grass" },
  *      { shape:"circle", x, y, r,    kind:"stone" },
+ *      { shape:"path", points:[{x,y}, ...], width:140, kind:"dirt" },
  *    ],
  *    fill: { on, sprite, r, gap, jitter, margin, exclude },  // そとがわを うめる（森・かべ）
  *    objects:     [ { x, y, r, sprite } ],     // 手でおいた しょうがいぶつ
@@ -29,17 +30,17 @@
 
   // ---- じめんの しゅるい（色）----
   const GROUND_KINDS = {
-    grass:  { label: "くさ",             color: "#8fca7a" },
-    grass2: { label: "ふかい くさ",       color: "#79b768" },
-    dirt:   { label: "つち の みち",      color: "#c9a878" },
-    sand:   { label: "すな",             color: "#e7d7a4" },
-    stone:  { label: "いし の ゆか",      color: "#b9b7bf" },
-    stone2: { label: "くらい いし",       color: "#8d8a96" },
-    wood:   { label: "いた の ゆか",      color: "#c08a52" },
-    carpet: { label: "あかい じゅうたん", color: "#b4535a" },
-    snow:   { label: "ゆき",             color: "#e9f1f7" },
-    lava:   { label: "あつい ゆか",       color: "#d5763f" },
-    water:  { label: "みず・かわ",        color: "#4da6ff" },
+    grass:  { label: "くさ",             color: "#8fca7a", passable: true },
+    grass2: { label: "ふかい くさ",       color: "#79b768", passable: true },
+    dirt:   { label: "つち の みち",      color: "#c9a878", passable: true },
+    sand:   { label: "すな",             color: "#e7d7a4", passable: true },
+    stone:  { label: "いし の ゆか",      color: "#b9b7bf", passable: true },
+    stone2: { label: "くらい いし",       color: "#8d8a96", passable: true },
+    wood:   { label: "いた の ゆか",      color: "#c08a52", passable: true },
+    carpet: { label: "あかい じゅうたん", color: "#b4535a", passable: true },
+    snow:   { label: "ゆき",             color: "#e9f1f7", passable: true },
+    lava:   { label: "あつい ゆか",       color: "#d5763f", passable: false },
+    water:  { label: "みず・かわ",        color: "#4da6ff", passable: false },
   };
 
   // ---- しょうがいぶつ パーツ（ぶつかる）----
@@ -89,6 +90,21 @@
   function inArea(a, x, y, margin) {
     const m = margin || 0;
     if (a.shape === "circle") return Math.hypot(x - a.x, y - a.y) < a.r + m;
+    if (a.shape === "path") {
+      const pts = a.points || [];
+      const reach = (a.width || 0) * 0.5 + m;
+      if (!pts.length) return false;
+      if (pts.length === 1) return Math.hypot(x - pts[0].x, y - pts[0].y) < reach;
+      for (let i = 1; i < pts.length; i++) {
+        const p0 = pts[i - 1], p1 = pts[i];
+        const vx = p1.x - p0.x, vy = p1.y - p0.y;
+        const len2 = vx * vx + vy * vy;
+        const t = len2 ? Math.max(0, Math.min(1, ((x - p0.x) * vx + (y - p0.y) * vy) / len2)) : 0;
+        const px = p0.x + vx * t, py = p0.y + vy * t;
+        if (Math.hypot(x - px, y - py) < reach) return true;
+      }
+      return false;
+    }
     return x > a.x - m && x < a.x + a.w + m && y > a.y - m && y < a.y + a.h + m;
   }
 
@@ -97,6 +113,24 @@
     const areas = data.areas || [];
     for (let i = 0; i < areas.length; i++) if (inArea(areas[i], x, y, margin)) return true;
     return false;
+  }
+
+  // あとの地面ほど上に描かれるので、通行判定も同じ順序で調べる。
+  // raw map（areas が直下）と build 後の world（world.areas）の両方を受け取れる。
+  function terrainAt(data, x, y) {
+    const areas = (data && data.areas) || (data && data.world && data.world.areas) || [];
+    for (let i = areas.length - 1; i >= 0; i--) {
+      if (inArea(areas[i], x, y, 0)) return areas[i];
+    }
+    return null;
+  }
+
+  function isPassable(data, x, y) {
+    const area = terrainAt(data, x, y);
+    if (!area) return true;
+    if (area.passable != null) return !!area.passable;
+    const kind = GROUND_KINDS[area.kind];
+    return !kind || kind.passable !== false;
   }
 
   // 消した うめパーツ の おぼえかた（ざひょうを 丸めた もじ）
@@ -147,8 +181,16 @@
 
         // treeの場合は自然なバリエーション（tree, tree2, tree-small）を軽く散らす
         let sprite = baseSprite;
-        if (baseSprite === "tree") {
-          const h3 = fillHash(gx + 17.5, gy + 43.7);
+        const h3 = fillHash(gx + 17.5, gy + 43.7);
+        if (Array.isArray(f.mix) && f.mix.length) {
+          const choices = f.mix.map((item) => typeof item === "string" ? { sprite: item, weight: 1 } : item);
+          const total = choices.reduce((sum, item) => sum + Math.max(0, item.weight == null ? 1 : item.weight), 0) || 1;
+          let pick = h3 * total;
+          for (const item of choices) {
+            pick -= Math.max(0, item.weight == null ? 1 : item.weight);
+            if (pick <= 0) { sprite = item.sprite || baseSprite; break; }
+          }
+        } else if (baseSprite === "tree") {
           if (h3 < 0.12) {
             sprite = "tree2";
           } else if (h3 < 0.20) {
@@ -520,6 +562,62 @@
     }
   }
 
+  // マップファイル内の JSON には、配置意図を残すためのコメントを許可する。
+  // 文字列中の // や /* */ は消さないよう、単純な正規表現ではなく1文字ずつ読む。
+  function stripJsonComments(source) {
+    let out = "";
+    let inString = false;
+    let escaped = false;
+    let lineComment = false;
+    let blockComment = false;
+    for (let i = 0; i < source.length; i++) {
+      const c = source[i];
+      const next = source[i + 1];
+      if (lineComment) {
+        if (c === "\n" || c === "\r") {
+          lineComment = false;
+          out += c;
+        }
+        continue;
+      }
+      if (blockComment) {
+        if (c === "*" && next === "/") {
+          blockComment = false;
+          i++;
+        } else if (c === "\n" || c === "\r") {
+          out += c;
+        }
+        continue;
+      }
+      if (inString) {
+        out += c;
+        if (escaped) escaped = false;
+        else if (c === "\\") escaped = true;
+        else if (c === '"') inString = false;
+        continue;
+      }
+      if (c === '"') {
+        inString = true;
+        out += c;
+      } else if (c === "/" && next === "/") {
+        lineComment = true;
+        i++;
+      } else if (c === "/" && next === "*") {
+        blockComment = true;
+        i++;
+      } else {
+        out += c;
+      }
+    }
+    return out;
+  }
+
+  function parseMapText(source) {
+    const match = String(source || "").match(/\/\*MAPDATA\*\/(.*?)(?:\/\*ENDMAPDATA\*\/|;?\s*$)/s);
+    const json = match && match[1] ? match[1] : String(source || "");
+    return JSON.parse(stripJsonComments(json).trim().replace(/;\s*$/, ""));
+  }
+
   window.MapData = {
     GROUND_KINDS,
     PARTS,
@@ -529,6 +627,8 @@
     MARKERS,
     inArea,
     inWalk,
+    terrainAt,
+    isPassable,
     buildFill,
     build,
     excludeKey,
@@ -537,5 +637,7 @@
     applyMapToStage,
     saveEditedMap,
     clearEditedMap,
+    stripJsonComments,
+    parseMapText,
   };
 })();

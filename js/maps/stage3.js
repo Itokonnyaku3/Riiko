@@ -382,6 +382,16 @@ window.MAPS["stage3"] = /*MAPDATA*/{
    "x": 1300,
    "y": 3380,
    "r": 60,
+   "eventInfo": {
+    "title": "湖畔のルート選択",
+    "fire": "初めて範囲に入る（s3IntroDone が未設定）",
+    "effects": [
+     "ベルが湖と神殿を説明する",
+     "西の木道／東の浅瀬の選択肢を出す",
+     "routeChoice に west または east を記録する"
+    ],
+    "source": "js/stages/stage3.js#trig_s3_intro"
+   },
    "name": "ベル",
    "lines": [
     "ここが「静寂の湖」ね…！",
@@ -395,14 +405,36 @@ window.MAPS["stage3"] = /*MAPDATA*/{
    "id": "trig_fort_trap",
    "x": 1300,
    "y": 2180,
-   "r": 80
+   "r": 90,
+   "eventInfo": {
+    "title": "湖上砦の包囲戦とミィ加入",
+    "fire": "初めて砦中央に入る（fortTrapTriggered が未設定）",
+    "effects": [
+     "南の鉄柵を閉じて包囲戦を開始する",
+     "ミィの乱入会話を再生して仲間に加える",
+     "北門を開き、タップ戦闘を説明する"
+    ],
+    "targets": ["gate_trap", "gate_north"],
+    "source": "js/stages/stage3.js#trig_fort_trap"
+   }
   },
   // 神殿奥のハナ発見・かげマント強襲トリガー
   {
    "id": "trig_temple_hana",
    "x": 1300,
    "y": 680,
-   "r": 70
+   "r": 80,
+   "eventInfo": {
+    "title": "ハナ再会とかげマント強襲",
+    "fire": "初めて神殿最奥に入る（hanaSeen が未設定）",
+    "effects": [
+     "ハナとの再会、かげマント出現、結界演出を再生する",
+     "ハナとかげマントを退場させる",
+     "templeCleared を立て、4面への出口門を開く"
+    ],
+    "targets": ["gate_exit"],
+    "source": "js/stages/stage3.js#trig_temple_hana"
+   }
   }
  ],
  "exit": {
