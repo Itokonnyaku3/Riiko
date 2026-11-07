@@ -12,6 +12,7 @@ node tests/test-map-editor.js && node tests/test-game.js && node tests/test-stag
 - `test-stage1-map.js` … **1面の 地形**（出口まで 行ける／抜け道が ゆいいつの 道／しろへは 行けない／通路の はば）
 - `test-battle.js` … **たたかいの バランス**（何回で たおせるか・コンボ・ジャスト反げき・突進ネコ）
 - `test-save.js` … **面の きりかえ・セーブ・フラグ・チェックポイント・カットシーン・ヒント・くじけない しくみ**
+- `test-ground-painter.js` … **しぜんな じめん**（決まった結果・チャンクのつなぎめ・水のあわ・まっすぐな橋・速さ）
 - `test-fairy.js` … **仲間1 妖精ピカ**（加入・ついてくる・しゃべる・ヒント・薬）
 
 DOM（ブラウザの しくみ）の ふりを する かんたんな しかけで、`tools/map-editor.js` と
