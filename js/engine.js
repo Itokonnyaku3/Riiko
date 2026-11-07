@@ -3450,9 +3450,14 @@
     // 背景の地面（テクスチャをワールド座標に固定して敷き詰める）
     ctx.save();
     ctx.translate(ox, oy);
-    ctx.fillStyle = (typeof Assets !== "undefined" && Assets.getGroundPattern)
-      ? Assets.getGroundPattern(ctx, G.world.ground, G.world.ground || "#4e7a44")
-      : (G.world.ground || "#8fca7a");
+    if (naturalGroundEnabled()) {
+      // しぜん地面: 背景もチャンクに含まれる。未生成チャンクの保険に単色だけ敷く
+      ctx.fillStyle = G.world.ground || "#4e7a44";
+    } else {
+      ctx.fillStyle = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+        ? Assets.getGroundPattern(ctx, G.world.ground, G.world.ground || "#4e7a44")
+        : (G.world.ground || "#8fca7a");
+    }
     ctx.fillRect(-ox, -oy, viewW, viewH);
     ctx.restore();
 
@@ -3972,6 +3977,162 @@
 
   function invalidateAreaChunks() {
     areaChunks = null;
+    naturalChunks = null;
+    naturalFresh = true;
+  }
+
+  // ---- しぜん地面（js/ground-painter.js）----
+  // ワールド全体を 800px チャンクに わけ、出力は 2px = 1ピクセルの ドット絵で 作る。
+  // ?ground=classic か localStorage riiko_ground=classic、または 必要なAPIが ないとき(Nodeテスト)は 従来の描画。
+  const NATURAL_SCALE = 2;
+  let naturalChunks = null; // key "c,r" -> { x, y, w, h, canvas }
+  let naturalFresh = true; // invalidate 直後の 最初のフレームか
+  let naturalSwitch = null;
+
+  function naturalGroundEnabled() {
+    if (naturalSwitch === null) {
+      let on = typeof window !== "undefined" && !!window.GroundPainter &&
+        typeof document !== "undefined" && typeof document.createElement === "function";
+      if (on) {
+        try {
+          if (typeof location !== "undefined" && /[?&]ground=classic\b/.test(location.search || "")) on = false;
+        } catch (e) { /* 何もしない */ }
+        try {
+          if (typeof localStorage !== "undefined" && localStorage.getItem("riiko_ground") === "classic") on = false;
+        } catch (e) { /* 何もしない */ }
+      }
+      if (on) {
+        try {
+          const c = document.createElement("canvas");
+          c.width = 1; c.height = 1;
+          const cc = c.getContext && c.getContext("2d");
+          on = !!(cc && typeof cc.createImageData === "function" && typeof cc.putImageData === "function");
+        } catch (e) { on = false; }
+      }
+      naturalSwitch = on;
+    }
+    return naturalSwitch && !!(G.world && G.world.areas);
+  }
+
+  function naturalSeed() {
+    const str = String(G.stageId || (G.world && G.world.name) || "stage");
+    let h = 7;
+    for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0;
+    return (h & 0x7fffffff) % 100000 + 1;
+  }
+
+  // 作業用キャンバス（使いまわす）
+  let natMaskCvs = null, natTmpCvs = null;
+
+  function buildNaturalChunk(c, r) {
+    const w = (G.world && G.world.width) || 2400;
+    const h = (G.world && G.world.height) || 4400;
+    const x = c * AREA_CHUNK_SIZE, y = r * AREA_CHUNK_SIZE;
+    const cw = Math.min(AREA_CHUNK_SIZE, w - x), ch = Math.min(AREA_CHUNK_SIZE, h - y);
+    const out = window.GroundPainter.paintChunk({
+      areas: G.world.areas, ground: G.world.ground, x, y, w: cw, h: ch,
+      scale: NATURAL_SCALE, seed: naturalSeed(),
+    });
+    const OW = out.width, OH = out.height;
+    const dw = OW * NATURAL_SCALE, dh = OH * NATURAL_SCALE;
+
+    const cvs = document.createElement("canvas");
+    cvs.width = cw; cvs.height = ch;
+    const cctx = cvs.getContext("2d");
+    if (!natMaskCvs) natMaskCvs = document.createElement("canvas");
+    if (!natTmpCvs) natTmpCvs = document.createElement("canvas");
+    natMaskCvs.width = OW; natMaskCvs.height = OH;
+    natTmpCvs.width = cw; natTmpCvs.height = ch;
+    const mctx = natMaskCvs.getContext("2d");
+    const tctx = natTmpCvs.getContext("2d");
+    const mimg = mctx.createImageData(OW, OH);
+    const md = mimg.data;
+    const labels = out.labels;
+
+    // 描く順番: じめん → ほかの領域(キー順) → 板(いちばん上)
+    const order = [];
+    out.kinds.forEach((k, i) => { if (k.count > 0) order.push(i); });
+    order.sort((a, b) => {
+      const ka = out.kinds[a], kb = out.kinds[b];
+      const wa = ka.kind === "wood" ? 2 : ka.isGround ? 0 : 1, wb = kb.kind === "wood" ? 2 : kb.isGround ? 0 : 1;
+      if (wa !== wb) return wa - wb;
+      return ka.key < kb.key ? -1 : ka.key > kb.key ? 1 : 0;
+    });
+
+    for (const ki of order) {
+      const kind = out.kinds[ki];
+      const dilate = !kind.isGround && kind.kind !== "wood"; // ふちの すきまを うめる
+      md.fill(0);
+      for (let j = 0; j < OH; j++) {
+        for (let i = 0; i < OW; i++) {
+          const p = j * OW + i;
+          let on = labels[p] === ki;
+          if (!on && dilate) {
+            on = (i > 0 && labels[p - 1] === ki) || (i < OW - 1 && labels[p + 1] === ki) ||
+                 (j > 0 && labels[p - OW] === ki) || (j < OH - 1 && labels[p + OW] === ki);
+          }
+          if (on) { const o = p * 4; md[o] = md[o + 1] = md[o + 2] = 255; md[o + 3] = 255; }
+        }
+      }
+      mctx.putImageData(mimg, 0, 0);
+
+      tctx.setTransform(1, 0, 0, 1, 0, 0);
+      tctx.globalCompositeOperation = "source-over";
+      tctx.clearRect(0, 0, cw, ch);
+      tctx.imageSmoothingEnabled = !kind.isGround && kind.kind !== "wood"; // 板は くっきり
+      tctx.drawImage(natMaskCvs, 0, 0, dw, dh);
+      tctx.globalCompositeOperation = "source-in";
+      tctx.setTransform(1, 0, 0, 1, -x, -y); // テクスチャを ワールド座標に そろえる
+      const pat = (typeof Assets !== "undefined" && Assets.getGroundPattern)
+        ? Assets.getGroundPattern(tctx, kind.isGround ? kind.color : kind.kind, kind.color)
+        : kind.color;
+      tctx.fillStyle = pat;
+      tctx.fillRect(x, y, cw, ch);
+      tctx.setTransform(1, 0, 0, 1, 0, 0);
+      tctx.globalCompositeOperation = "source-over";
+      cctx.drawImage(natTmpCvs, 0, 0);
+    }
+
+    // かげ・あわ・リムの うすい かさね
+    mctx.putImageData((() => { const im = mctx.createImageData(OW, OH); im.data.set(out.shade); return im; })(), 0, 0);
+    cctx.imageSmoothingEnabled = true;
+    cctx.drawImage(natMaskCvs, 0, 0, dw, dh);
+    return { x, y, w: cw, h: ch, canvas: cvs };
+  }
+
+  function drawNaturalGround(ox, oy) {
+    if (!naturalChunks) naturalChunks = {};
+    const w = (G.world && G.world.width) || 2400;
+    const h = (G.world && G.world.height) || 4400;
+    const cols = Math.ceil(w / AREA_CHUNK_SIZE), rows = Math.ceil(h / AREA_CHUNK_SIZE);
+    const visible = [], hidden = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = c * AREA_CHUNK_SIZE, y = r * AREA_CHUNK_SIZE;
+        const cw = Math.min(AREA_CHUNK_SIZE, w - x), ch = Math.min(AREA_CHUNK_SIZE, h - y);
+        const vis = !(x + ox + cw < 0 || x + ox > viewW || y + oy + ch < 0 || y + oy > viewH);
+        (vis ? visible : hidden).push({ c, r, key: c + "," + r, x, y, cw, ch });
+      }
+    }
+    // 無効化の直後は 見えている分を すべて作る（ポップ防止）。以後は 1フレーム 2枚まで。
+    let budget = naturalFresh ? Infinity : 2;
+    naturalFresh = false;
+    for (const t of visible) {
+      if (!naturalChunks[t.key] && budget > 0) {
+        naturalChunks[t.key] = buildNaturalChunk(t.c, t.r);
+        budget--;
+      }
+    }
+    // 見えていない チャンクを 1フレームに 1枚 先に作っておく
+    if (budget > 0) {
+      for (const t of hidden) {
+        if (!naturalChunks[t.key]) { naturalChunks[t.key] = buildNaturalChunk(t.c, t.r); break; }
+      }
+    }
+    for (const t of visible) {
+      const ck = naturalChunks[t.key];
+      if (ck) ctx.drawImage(ck.canvas, t.x + ox, t.y + oy);
+    }
   }
 
   function areaBounds(a, pad) {
@@ -4085,6 +4246,11 @@
   function drawAreas(ox, oy) {
     const areas = (G.world && G.world.areas) || [];
     if (!areas.length) return;
+
+    if (naturalGroundEnabled()) {
+      drawNaturalGround(ox, oy);
+      return;
+    }
 
     const chunks = getAreaChunks();
     if (chunks) {
